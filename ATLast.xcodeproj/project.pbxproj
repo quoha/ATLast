@@ -213,14 +213,6 @@
 		2D360389195289AD009CF143 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				"GCC_PREPROCESSOR_DEFINITIONS[arch=*]" = (
-					"DEBUG=1",
-					MEMSTAT,
-					ALIGNMENT,
-					EXPORT,
-					READONLYSTRINGS,
-					"$(inherited)",
-				);
 				PRODUCT_NAME = "$(TARGET_NAME)";
 			};
 			name = Debug;

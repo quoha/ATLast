@@ -20,6 +20,8 @@
 #include <string.h>
 #include <signal.h>
 
+#include "atlcfg.h"
+
 //#include "atldef.h"
 //
 //  ATLast/atldef.h
@@ -1758,7 +1760,7 @@ prim P_fleq(void) {
 /* Print floating point top of stack */
 prim P_fdot(void) {
     Sl(Realsize);
-    V printf("%g ", REAL0);
+    fprintf(stderr, "%g ", REAL0);
     Realpop;
 }
 
@@ -1852,36 +1854,52 @@ prim P_tan(void) {
 /*  Console I/O primitives  */
 
 #ifdef CONIO
-/* Print top of stack, pop it */
+// . -- print top of stack, pop it
+//
 prim P_dot(void) {
     Sl(1);
-    V printf(base == 16 ? "%lX" : "%ld ", S0);
+    if (base == 16) {
+        fprintf(stderr, "%lX ", S0);
+    } else {
+        fprintf(stderr, "%ld ", S0);
+    }
     Pop;
 }
 
-/* Print value at address */
+// .? -- print value at address, pop it
+//
 prim P_question(void) {
     Sl(1);
     Hpc(S0);
-    V printf(base == 16 ? "%lX" : "%ld ", *((stackitem *) S0));
+    if (base == 16) {
+        fprintf(stderr, "%lX ", *((stackitem *) S0));
+    } else {
+        fprintf(stderr, "%ld ", *((stackitem *) S0));
+    }
     Pop;
 }
 
-/* Carriage return */
+// cr -- carriage return
+//
 prim P_cr(void) {
-    V printf("\n");
+    fprintf(stderr, "\n");
 }
 
-/* Print entire contents of stack */
+// .s -- print entire contents of stack
+//
 prim P_dots(void) {
     stackitem *tsp;
 
-    V printf("Stack: ");
-    if (stk == stackbot)
-        V printf("Empty.");
-    else {
+    fprintf(stderr, "stack: ");
+    if (stk == stackbot) {
+        fprintf(stderr, "empty.");
+    } else {
         for (tsp = stack; tsp < stk; tsp++) {
-            V printf(base == 16 ? "%lX" : "%ld ", *tsp);
+            if (base == 16) {
+                fprintf(stderr, "%lX ", *tsp);
+            } else {
+                fprintf(stderr, "%ld ", *tsp);
+            }
         }
     }
 }
@@ -1898,8 +1916,7 @@ prim P_dotparen(void) {
     if (ip == NULL) {		      /* If interpreting */
         stringlit = True;	      /* Set to print next string constant */
     } else {			      /* Otherwise, */
-        V printf("%s", ((char *) ip) + 1); /* print string literal
-                                            in in-line code. */
+        fprintf(stderr, "%s", ((char *) ip) + 1); /* print string literal in in-line code. */
         Skipstring;		      /* And advance IP past it */
     }
 }
@@ -1908,7 +1925,7 @@ prim P_dotparen(void) {
 prim P_type(void) {
     Sl(1);
     Hpc(S0);
-    V printf("%s", (char *) S0);
+    fprintf(stderr, "%s", (char *) S0);
     Pop;
 }
 
@@ -1921,7 +1938,7 @@ prim P_words(void) {
 
     while (dw != NULL) {
 
-        V printf("\n%s", dw->wname + 1);
+        fprintf(stderr, "\n%s", dw->wname + 1);
         dw = dw->wnext;
 #ifdef Keyhit
         if (kbquit()) {
@@ -1934,7 +1951,7 @@ prim P_words(void) {
             break;
 #endif
     }
-    V printf("\n");
+    fprintf(stderr, "\n");
 }
 #endif /* CONIO */
 

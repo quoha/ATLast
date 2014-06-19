@@ -11,6 +11,20 @@
 #ifndef ATLast_atlcfg_h
 #define ATLast_atlcfg_h
 
+#ifndef MEMSTAT
+#define MEMSTAT
+#endif
 
+#ifndef ALIGNMENT
+#define ALIGNMENT
+#endif
+
+#ifndef EXPORT
+#define EXPORT
+#endif
+
+#ifndef READONLYSTRINGS
+#define READONLYSTRINGS
+#endif
 
 #endif
