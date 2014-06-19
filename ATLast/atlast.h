@@ -1,21 +1,21 @@
 /*
 
-			      A T L A S T
+ A T L A S T
 
-	  Autodesk Threaded Language Application System Toolkit
+ Autodesk Threaded Language Application System Toolkit
 
-		     Program Linkage Definitions
+ Program Linkage Definitions
 
-     Designed and implemented in January of 1990 by John Walker.
+ Designed and implemented in January of 1990 by John Walker.
 
-     This  module  contains  the  definitions  needed by programs that
-     invoke the ATLAST system.	It does contain the  definitions  used
-     internally   within  ATLAST  (which  might  create  conflicts  if
-     included in calling programs).
+ This  module  contains  the  definitions  needed by programs that
+ invoke the ATLAST system.	It does contain the  definitions  used
+ internally   within  ATLAST  (which  might  create  conflicts  if
+ included in calling programs).
 
-		This program is in the public domain.
+ This program is in the public domain.
 
-*/
+ */
 
 typedef long atl_int;		      /* Stack integer type */
 typedef double atl_real;	      /* Real number type */
@@ -32,9 +32,9 @@ extern atl_int atl_trace;	      /* Trace mode */
 extern atl_int atl_walkback;	      /* Error walkback enabled mode */
 extern atl_int atl_comment;	      /* Currently ignoring comment */
 extern atl_int atl_redef;	      /* Allow redefinition of words without
-                                         issuing the "not unique" warning. */
+                                   issuing the "not unique" warning. */
 extern atl_int atl_errline;	      /* Line number where last atl_load()
-					 errored or zero if no error. */
+                                   errored or zero if no error. */
 
 /*  ATL_EVAL return status codes  */
 
