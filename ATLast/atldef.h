@@ -19,6 +19,9 @@
 // automatically.
 //
 
+#ifndef ATLast_atldef_h
+#define ATLast_atldef_h
+
 #include "atlast.h"               /* Define user linkage structures */
 
 typedef void (*codeptr)();	      /* Machine code pointer */
@@ -290,3 +293,5 @@ extern int atl_exec();
 #define Isfile(x) Hpc(x); if (*((stackitem *)(x))!=FileSent) {V printf("\nNot a file\n");return;}
 #define FileD(x)  ((FILE *) *(((stackitem *) (x)) + 1))
 #define Isopen(x) if (FileD(x) == NULL) {V printf("\nFile not open\n");return;}
+
+#endif

@@ -19,6 +19,9 @@
 //   included in calling programs).
 //
 
+#ifndef ATLast_atlast_h
+#define ATLast_atlast_h
+
 typedef long   atl_int;		      // Stack integer type
 typedef double atl_real;	      // Real number type
 
@@ -57,3 +60,5 @@ extern atl_int atl_errline;	      // Line number where last atl_load() errored o
 extern void atl_init(void), atl_mark(void), atl_unwind(void), atl_break(void);
 extern int atl_eval(void), atl_load(void);
 extern void atl_memstat(void);
+
+#endif
