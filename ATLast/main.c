@@ -36,13 +36,13 @@
 
 #ifndef HIGHC
 
-/*  CTRLC  --  Catch a user console break signal.  If your C library
+/*  CatchCtrlC  --  Catch a user console break signal.  If your C library
  does not provide this Unix-compatibile facility
  (registered with the call on signal() in main()),
  just turn this code off or, better still, replace it
  with the equivalent on your system.  */
 
-static void ctrlc(int sig) {
+static void CatchCtrlC(int sig) {
     if (sig == SIGINT) {
         atl_break();
     }
@@ -158,7 +158,7 @@ int main(int argc, char *argv[]) {
      the main ATLAST execution loop. */
 
 #ifndef HIGHC
-    V signal(SIGINT, ctrlc);
+    V signal(SIGINT, CatchCtrlC);
 #endif /* HIGHC */
     while (TRUE) {
         char t[132];

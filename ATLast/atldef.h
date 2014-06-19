@@ -30,24 +30,24 @@
 
 #include "atltypes.h"
 
-#include "atlast.h"               /* Define user linkage structures */
+#include "atlast.h"               // Define user linkage structures
 
-/*  Word flag bits  */
+// Word flag bits
 
-#define IMMEDIATE   1		      /* Word is immediate */
-#define WORDUSED    2		      /* Word used by program */
-#define WORDHIDDEN  4		      /* Word is hidden from lookup */
+#define IMMEDIATE   1		      // Word is immediate
+#define WORDUSED    2		      // Word used by program
+#define WORDHIDDEN  4		      // Word is hidden from lookup
 
-/* Stack items occupied by a dictionary word definition */
+// Stack items occupied by a dictionary word definition
 #define Dictwordl ((sizeof(dictword)+(sizeof(stackitem)-1))/sizeof(stackitem))
 
-/* Token types */
+// Token types
 
-#define TokNull     0		      /* Nothing scanned */
-#define TokWord     1		      /* Word stored in token name buffer */
-#define TokInt	    2		      /* Integer scanned */
-#define TokReal     3		      /* Real number scanned */
-#define TokString   4		      /* String scanned */
+#define TokNull     0		      // Nothing scanned
+#define TokWord     1		      // Word stored in token name buffer
+#define TokInt	    2		      // Integer scanned
+#define TokReal     3		      // Real number scanned
+#define TokString   4		      // String scanned
 
 #ifdef EXPORT
 #   define Exported
@@ -71,14 +71,14 @@
 #       define ip           atl__ip
 #       define curword      atl__cw
 #       define createword   atl__wd
-#   endif /* NOMANGLE */
+#   endif // NOMANGLE
 
 #   ifdef MEMSTAT
 #       ifndef NOMANGLE
 #           define stackmax    atl__sx
 #           define rstackmax   atl__rx
 #           define heapmax     atl__hx
-#       endif /* NOMANGLE */
+#       endif // NOMANGLE
         extern stackitem *stackmax, *heapmax;
         extern dictword ***rstackmax;
 #   endif
@@ -88,14 +88,14 @@
 #           define rbuf0	    atl__r0
 #           define rbuf1	    atl__r1
 #           define rbuf2	    atl__r2
-#       endif /* NOMANGLE */
-        extern atl_real rbuf0, rbuf1, rbuf2;  /* Real temporaries for alignment */
+#       endif // NOMANGLE
+        extern atl_real rbuf0, rbuf1, rbuf2;  // Real temporaries for alignment
 #   endif
 
-#   define FmodeR	    1		      /* Read mode */
-#   define FmodeW	    2		      /* Write mode */
-#   define FmodeB	    4		      /* Binary file mode */
-#   define FmodeCre    8		      /* Create new file */
+#   define FmodeR       1   // Read mode
+#   define FmodeW       2   // Write mode
+#   define FmodeB       4   // Binary file mode
+#   define FmodeCre     8   // Create new file
 
     extern stackitem *stack, *stk, *stackbot, *stacktop, *heap, *hptr, *heapbot, *heaptop;
     extern dictword ***rstack, ***rstk, ***rstackbot, ***rstacktop;
@@ -107,11 +107,11 @@
 #   ifndef NOMANGLE
 #       define P_create    atl__Pcr
 #       define P_dodoes    atl__Pds
-#   endif /* NOMANGLE */
+#   endif // NOMANGLE
     extern void P_create(), P_dodoes();
-#else  /* EXPORT */
+#else  // EXPORT
 #   define Exported static
-#endif /* EXPORT */
+#endif // EXPORT
 
 #ifndef NOMEMCHECK
 #   ifdef EXPORT
@@ -122,23 +122,18 @@
 #           define badpointer  atl__Ebp
 #           define stakunder   atl__Esu
 #           define rstakunder  atl__Ersu
-#       endif /* NOMANGLE */
-        extern
+#       endif // NOMANGLE
 #   endif
-    void stakover(), rstakover(), heapover(), badpointer(), stakunder(), rstakunder();
 #endif
 
-/* Functions called by exported extensions. */
-extern void atl_primdef(), atl_error();
-extern dictword *atl_lookup(), *atl_vardef();
-extern stackitem *atl_body();
-extern int atl_exec();
-#ifdef EXPORT
-    extern char *atl_fgetsp();
-#endif
+void stakover(void);
+void rstakover(void);
+void heapover(void);
+void badpointer(void);
+void stakunder(void);
+void rstakunder(void);
 
-/*  If explicit alignment is not requested, enable it in any case for
- known CPU types that require alignment.  */
+// If explicit alignment is not requested, enable it in any case for known CPU types that require alignment.
 
 #ifndef ALIGNMENT
     #ifdef sparc
@@ -147,19 +142,19 @@ extern int atl_exec();
 #endif
 #ifdef __TURBOC__
     #define  Keyhit()   (kbhit() ? getch() : 0)
-    /* DOS needs poll to detect break */
+    // DOS needs poll to detect break
     #define  Keybreak() { static int n=0; if ((n = (n+1) & 127) == 0) V kbhit(); }
     #ifdef __MSDOS__
         #define MSDOS
     #endif
 #endif
 #ifdef MSDOS
-    #define FBmode			      /* DOS requires binary file flag */
+    #define FBmode			      // DOS requires binary file flag
 #endif
 #ifdef Macintosh
-    #define FBmode			      /* Macintosh requires binary file flag */
+    #define FBmode			      // Macintosh requires binary file flag
 #endif
-#ifdef OS2			      /* OS/2 requires binary file flag */
+#ifdef OS2			      // OS/2 requires binary file flag
     #define FBmode
 #endif
 
@@ -169,17 +164,16 @@ extern int atl_exec();
 #endif
 
 
-/*  STATIC is defined as "static" on platforms which require this
- specification on declarations for forward-referenced functions.  */
+// STATIC is defined as "static" on platforms which require this specification on declarations for forward-referenced functions.
 
 #define STATIC static
 
-#ifdef ADS                            /* Definitions if we're an ADS app */
-    #define printf ads_printf	      /* Print through ADS */
+#ifdef ADS                            // Definitions if we're an ADS app
+    #define printf ads_printf	      // Print through ADS
     #define Keybreak() {static int n=0; if ((n=(n+1)&127)==0) {UbI(); broken=ads_usrbrk();}}
 #endif
 
-/*  Dynamic storage manipulation primitives  */
+// Dynamic storage manipulation primitives
 
 /*  Stack access definitions  */
 

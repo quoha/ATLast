@@ -3276,12 +3276,9 @@ dictword *atl_lookup(char *name) {
     return lookup(tokbuf);	      /* Now use normal lookup() on it */
 }
 
-/*  ATL_BODY  --  Returns the address of the body of a word, given
- its dictionary entry. */
-
-stackitem *atl_body(dw)
-dictword *dw;
-{
+// ATL_BODY  --  Returns the address of the body of a word, given its dictionary entry.
+//
+stackitem *atl_body(dictword *dw) {
     return ((stackitem *) dw) + Dictwordl;
 }
 
@@ -3290,9 +3287,7 @@ dictword *dw;
  returned.  The in-progress evaluation status is
  preserved. */
 
-int atl_exec(dw)
-dictword *dw;
-{
+int atl_exec(dictword *dw) {
     int sestat = evalstat, restat;
 
     evalstat = ATL_SNORM;
