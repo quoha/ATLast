@@ -3908,6 +3908,7 @@ int atl_eval(char *sp) {
 #define Memerrs evalstat
     instream = sp;
     evalstat = ATL_SNORM;	      // Set normal evaluation status
+
 #ifdef BREAK
     broken = False;		      // Reset asynchronous break
 #endif
@@ -3937,14 +3938,14 @@ int atl_eval(char *sp) {
                     if ((di = lookup(tokbuf)) != NULL) {
                         dictword *dw = dict;
 
-                        /* Pass 1.  Rip through the dictionary to make sure
-                         this word is not past the marker that
-                         guards against forgetting too much. */
+                        // Pass 1.  Rip through the dictionary to make sure
+                        // this word is not past the marker that
+                        // guards against forgetting too much.
 
                         while (dw != NULL) {
                             if (dw == dictprot) {
 #ifdef MEMMESSAGE
-                                V printf("\nForget protected.\n");
+                                fprintf(stderr, "\nforget protected.\n");
 #endif
                                 evalstat = ATL_FORGETPROT;
                                 di = NULL;
@@ -3955,38 +3956,39 @@ int atl_eval(char *sp) {
                             dw = dw->wnext;
                         }
 
-                        /* Pass 2.  Walk back through the dictionary
-                         items until we encounter the target
-                         of the FORGET.  Release each item's
-                         name buffer and dechain it from the
-                         dictionary list. */
+                        // Pass 2.  Walk back through the dictionary
+                        // items until we encounter the target
+                        // of the FORGET.  Release each item's
+                        // name buffer and dechain it from the
+                        // dictionary list. */
 
                         if (di != NULL) {
                             do {
                                 dw = dict;
-                                if (dw->wname != NULL)
+                                if (dw->wname != NULL) {
                                     free(dw->wname);
+                                }
                                 dict = dw->wnext;
                             } while (dw != di);
-                            /* Finally, back the heap allocation pointer
-                             up to the start of the last item forgotten. */
+                            // Finally, back the heap allocation pointer
+                            // up to the start of the last item forgotten.
                             hptr = (stackitem *) di;
-                            /* Uhhhh, just one more thing.  If this word
-                             was defined with DOES>, there's a link to
-                             the method address hidden before its
-                             wnext field.  See if it's a DOES> by testing
-                             the wcode field for P_dodoes and, if so,
-                             back up the heap one more item. */
+                            // Uhhhh, just one more thing.  If this word
+                            // was defined with DOES>, there's a link to
+                            // the method address hidden before its
+                            // wnext field.  See if it's a DOES> by testing
+                            // the wcode field for P_dodoes and, if so,
+                            // back up the heap one more item.
                             if (di->wcode == (codeptr) P_dodoes) {
 #ifdef FORGETDEBUG
-                                V printf(" Forgetting DOES> word. ");
+                                fprintf(stderr, " forgetting DOES> word. ");
 #endif
                                 hptr--;
                             }
                         }
                     } else {
 #ifdef MEMMESSAGE
-                        V printf(" '%s' undefined ", tokbuf);
+                        fprintf(stderr, " '%s' undefined ", tokbuf);
 #endif
                         evalstat = ATL_UNDEFINED;
                     }
@@ -3995,21 +3997,22 @@ int atl_eval(char *sp) {
                     ucase(tokbuf);
                     if ((di = lookup(tokbuf)) != NULL) {
                         So(1);
-                        Push = (stackitem) di; /* Push word compile address */
+                        Push = (stackitem) di; // push word compile address
                     } else {
 #ifdef MEMMESSAGE
-                        V printf(" '%s' undefined ", tokbuf);
+                        fprintf(stderr, " '%s' undefined ", tokbuf);
 #endif
                         evalstat = ATL_UNDEFINED;
                     }
                 } else if (defpend) {
-                    /* If a definition is pending, define the token and
-                     leave the address of the new word item created for
-                     it on the return stack. */
+                    // If a definition is pending, define the token and
+                    // leave the address of the new word item created for
+                    // it on the return stack.
                     defpend = False;
                     ucase(tokbuf);
-                    if (atl_redef && (lookup(tokbuf) != NULL))
-                        V printf("\n%s isn't unique.", tokbuf);
+                    if (atl_redef && (lookup(tokbuf) != NULL)) {
+                        fprintf(stderr, "\n%s isn't unique.", tokbuf);
+                    }
                     enter(tokbuf);
                 } else {
                     di = lookup(tokbuf);
@@ -4039,7 +4042,7 @@ int atl_eval(char *sp) {
                             }
                     } else {
 #ifdef MEMMESSAGE
-                        V printf(" '%s' undefined ", tokbuf);
+                        fprintf(stderr, " '%s' undefined ", tokbuf);
 #endif
                         evalstat = ATL_UNDEFINED;
                         state = Falsity;
@@ -4124,7 +4127,7 @@ int atl_eval(char *sp) {
                 break;
 #endif /* STRING */
             default:
-                V printf("\nUnknown token type %d\n", i);
+                fprintf(stderr, "\nunknown token type %d\n", i);
                 break;
         }
     }
