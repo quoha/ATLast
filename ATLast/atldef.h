@@ -22,30 +22,15 @@
 #ifndef ATLast_atldef_h
 #define ATLast_atldef_h
 
+#include "atltypes.h"
+
 #include "atlast.h"               /* Define user linkage structures */
-
-typedef void (*codeptr)();	      /* Machine code pointer */
-
-/*  Dictionary word entry  */
-
-typedef struct dw {
-    struct dw *wnext;	      /* Next word in dictionary */
-    char *wname;		      /* Word name.  The first character is
-                                 actually the word flags, including
-                                 the (IMMEDIATE) bit. */
-    codeptr wcode;		      /* Machine code implementation */
-} dictword;
 
 /*  Word flag bits  */
 
 #define IMMEDIATE   1		      /* Word is immediate */
 #define WORDUSED    2		      /* Word used by program */
 #define WORDHIDDEN  4		      /* Word is hidden from lookup */
-
-/*  Data types	*/
-
-typedef long stackitem;
-typedef dictword **rstackitem;
 
 /* Stack items occupied by a dictionary word definition */
 #define Dictwordl ((sizeof(dictword)+(sizeof(stackitem)-1))/sizeof(stackitem))
@@ -57,22 +42,6 @@ typedef dictword **rstackitem;
 #define TokInt	    2		      /* Integer scanned */
 #define TokReal     3		      /* Real number scanned */
 #define TokString   4		      /* String scanned */
-
-/*  Primitive definition table entry  */
-
-struct primfcn {
-    char *pname;
-    codeptr pcode;
-};
-
-/*  Internal state marker item	*/
-
-typedef struct {
-    stackitem *mstack;		      /* Stack position marker */
-    stackitem *mheap;		      /* Heap allocation marker */
-    dictword ***mrstack;	      /* Return stack position marker */
-    dictword *mdict;		      /* Dictionary marker */
-} atl_statemark;
 
 #ifdef EXPORT
 #   define Exported

@@ -2267,8 +2267,8 @@ prim P_rbrack(void) {
     state = Truth;
 }
 
-Exported void P_dodoes()	      /* Execute indirect call on method */
-{
+/* Execute indirect call on method */
+Exported void P_dodoes(void) {
     Rso(1);
     So(1);
     Rpush = ip; 		      /* Push instruction pointer */
@@ -2944,9 +2944,7 @@ static struct primfcn primt[] = {
  allocated word items, we get one buffer for all
  the items and link them internally within the buffer. */
 
-Exported void atl_primdef(pt)
-struct primfcn *pt;
-{
+Exported void atl_primdef(struct primfcn *pt) {
     struct primfcn *pf = pt;
     dictword *nw;
     int i, n = 0;
@@ -3004,8 +3002,7 @@ struct primfcn *pt;
 
 /*  PWALKBACK  --  Print walkback trace.  */
 
-static void pwalkback()
-{
+static void pwalkback(void) {
     if (atl_walkback && ((curword != NULL) || (wbptr > wback))) {
         V printf("Walkback:\n");
         if (curword != NULL) {
@@ -3021,9 +3018,7 @@ static void pwalkback()
 
 /*  TROUBLE  --  Common handler for serious errors.  */
 
-static void trouble(kind)
-char *kind;
-{
+static void trouble(char *kind) {
 #ifdef MEMMESSAGE
     V printf("\n%s.\n", kind);
 #endif
@@ -3038,9 +3033,7 @@ char *kind;
 
 /*  ATL_ERROR  --  Handle error detected by user-defined primitive.  */
 
-Exported void atl_error(kind)
-char *kind;
-{
+Exported void atl_error(char *kind) {
     trouble(kind);
     evalstat = ATL_APPLICATION;       /* Signify application-detected error */
 }
@@ -3049,32 +3042,28 @@ char *kind;
 
 /*  STAKOVER  --  Recover from stack overflow.	*/
 
-Exported void stakover()
-{
+Exported void stakover(void) {
     trouble("Stack overflow");
     evalstat = ATL_STACKOVER;
 }
 
 /*  STAKUNDER  --  Recover from stack underflow.  */
 
-Exported void stakunder()
-{
+Exported void stakunder(void) {
     trouble("Stack underflow");
     evalstat = ATL_STACKUNDER;
 }
 
 /*  RSTAKOVER  --  Recover from return stack overflow.	*/
 
-Exported void rstakover()
-{
+Exported void rstakover(void) {
     trouble("Return stack overflow");
     evalstat = ATL_RSTACKOVER;
 }
 
 /*  RSTAKUNDER	--  Recover from return stack underflow.  */
 
-Exported void rstakunder()
-{
+Exported void rstakunder(void) {
     trouble("Return stack underflow");
     evalstat = ATL_RSTACKUNDER;
 }
@@ -3084,32 +3073,28 @@ Exported void rstakunder()
  the user to do this manually with FORGET or
  some such. */
 
-Exported void heapover()
-{
+Exported void heapover(void) {
     trouble("Heap overflow");
     evalstat = ATL_HEAPOVER;
 }
 
 /*  BADPOINTER	--  Abort if bad pointer reference detected.  */
 
-Exported void badpointer()
-{
+Exported void badpointer(void) {
     trouble("Bad pointer");
     evalstat = ATL_BADPOINTER;
 }
 
 /*  NOTCOMP  --  Compiler word used outside definition.  */
 
-static void notcomp()
-{
+static void notcomp(void) {
     trouble("Compiler word outside definition");
     evalstat = ATL_NOTINDEF;
 }
 
 /*  DIVZERO  --  Attempt to divide by zero.  */
 
-static void divzero()
-{
+static void divzero(void) {
     trouble("Divide by zero");
     evalstat = ATL_DIVZERO;
 }
@@ -3118,9 +3103,7 @@ static void divzero()
 
 /*  EXWORD  --	Execute a word (and any sub-words it may invoke). */
 
-static void exword(wp)
-dictword *wp;
-{
+static void exword(dictword *wp) {
     curword = wp;
 #ifdef TRACE
     if (atl_trace) {
@@ -3159,8 +3142,7 @@ dictword *wp;
  ensure that the length allocated agrees with the lengths
  given by the atl_... cells.  */
 
-void atl_init()
-{
+void atl_init(void) {
     if (dict == NULL) {
         atl_primdef(primt);	      /* Define primitive words */
         dictprot = dict;	      /* Set protected mark in dictionary */
@@ -3289,9 +3271,7 @@ void atl_init()
  word item if found or NULL if the word isn't
  in the dictionary. */
 
-dictword *atl_lookup(name)
-char *name;
-{
+dictword *atl_lookup(char *name) {
     V strcpy(tokbuf, name);	      /* Use built-in token buffer... */
     ucase(tokbuf);                    /* so ucase() doesn't wreck arg string */
     return lookup(tokbuf);	      /* Now use normal lookup() on it */
@@ -3346,10 +3326,7 @@ dictword *dw;
  the dictionary item for the new word, or NULL if
  the heap overflows. */
 
-dictword *atl_vardef(name, size)
-char *name;
-int size;
-{
+dictword *atl_vardef(char *name, int size) {
     dictword *di;
     int isize = (size + (sizeof(stackitem) - 1)) / sizeof(stackitem);
 
@@ -3378,9 +3355,7 @@ int size;
 
 /*  ATL_MARK  --  Mark current state of the system.  */
 
-void atl_mark(mp)
-atl_statemark *mp;
-{
+void atl_mark(atl_statemark *mp) {
     mp->mstack = stk;		      /* Save stack position */
     mp->mheap = hptr;		      /* Save heap allocation marker */
     mp->mrstack = rstk; 	      /* Set return stack pointer */
@@ -3389,9 +3364,7 @@ atl_statemark *mp;
 
 /*  ATL_UNWIND	--  Restore system state to previously saved state.  */
 
-void atl_unwind(mp)
-atl_statemark *mp;
-{
+void atl_unwind(atl_statemark *mp) {
 
     /* If atl_mark() was called before the system was initialised, and
      we've initialised since, we cannot unwind.  Just ignore the
@@ -3425,17 +3398,14 @@ atl_statemark *mp;
  system state directly, as it may be in an unstable
  condition. */
 
-void atl_break()
-{
+void atl_break(void) {
     broken = True;		      /* Set break request */
 }
 #endif /* BREAK */
 
 /*  ATL_LOAD  --  Load a file into the system.	*/
 
-int atl_load(fp)
-FILE *fp;
-{
+int atl_load(FILE *fp) {
     int es = ATL_SNORM;
     char s[134];
     atl_statemark mk;
@@ -3475,9 +3445,7 @@ FILE *fp;
  Returns 1 if the statement was part of the
  prologue and 0 otherwise. */
 
-int atl_prologue(sp)
-char *sp;
-{
+int atl_prologue(char *sp) {
     static struct {
         char *pname;
         atl_int *pparam;
@@ -3512,9 +3480,7 @@ char *sp;
 
 /*  ATL_EVAL  --  Evaluate a string containing ATLAST words.  */
 
-int atl_eval(sp)
-char *sp;
-{
+int atl_eval(char *sp) {
     int i;
 
 #undef Memerrs

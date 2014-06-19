@@ -3,7 +3,6 @@
 //
 //  Created by Michael Henderson on 6/19/14.
 //  Copyright (c) 2014 Michael D Henderson. All rights reserved.
-//  Portions Copyright (c) 1990 by John Walker and placed into the public domain.
 //
 //			      ATLMAIN.C
 //
@@ -128,8 +127,7 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    /* If any include files were named, load each in turn before
-     we execute the program. */
+    /* If any include files were named, load each in turn before we execute the program. */
 
     for (i = 0; i < in; i++) {
         int stat;

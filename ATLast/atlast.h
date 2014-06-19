@@ -22,8 +22,9 @@
 #ifndef ATLast_atlast_h
 #define ATLast_atlast_h
 
-typedef long   atl_int;		      // Stack integer type
-typedef double atl_real;	      // Real number type
+#include "atltypes.h"
+
+#include <stdio.h>
 
 // External symbols accessible by the calling program.
 
@@ -57,8 +58,12 @@ extern atl_int atl_errline;	      // Line number where last atl_load() errored o
 #define ATL_APPLICATION -14	      // Application primitive atl_error()
 
 //  Entry points
-extern void atl_init(void), atl_mark(void), atl_unwind(void), atl_break(void);
-extern int atl_eval(void), atl_load(void);
+extern void atl_init(void);
+void atl_mark(atl_statemark *mp);
+void atl_unwind(atl_statemark *mp);
+void atl_break(void);
+extern int atl_load(FILE *fp);
 extern void atl_memstat(void);
+int atl_eval(char *sp);
 
 #endif
