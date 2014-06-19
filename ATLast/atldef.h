@@ -1,22 +1,23 @@
-/*
-
- A T L A S T
-
- Autodesk Threaded Language Application System Toolkit
-
- Definitions for components of ATLAST
-
- Designed and implemented in January of 1990 by John Walker.
-
-
- This  file	contains the definitions for modules within the ATLAST
- language system itself.  Definitions used by programs that link to
- ATLAST   are   in	ATLAST.H,  which  is  included	by  this  file
- automatically.
-
- This program is in the public domain.
-
- */
+//
+//  ATLast/atldef.h
+//
+//  Created by Michael Henderson on 6/19/14.
+//  Copyright (c) 2014 Michael D Henderson. All rights reserved.
+//  Portions Copyright (c) 1990 by John Walker and placed into the public domain.
+//
+// A T L A S T
+//
+// Autodesk Threaded Language Application System Toolkit
+//
+// Definitions for components of ATLAST
+//
+// Designed and implemented in January of 1990 by John Walker.
+//
+// This  file	contains the definitions for modules within the ATLAST
+// language system itself.  Definitions used by programs that link to
+// ATLAST   are   in	ATLAST.H,  which  is  included	by  this  file
+// automatically.
+//
 
 #include "atlast.h"               /* Define user linkage structures */
 

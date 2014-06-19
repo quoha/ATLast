@@ -1,12 +1,16 @@
-/*			      ATLMAIN.C
-
- Main driver program for interactive ATLAST
-
- Designed and implemented in January of 1990 by John Walker.
-
- This program is in the public domain.
-
- */
+//
+//  ATLast/main.c
+//
+//  Created by Michael Henderson on 6/19/14.
+//  Copyright (c) 2014 Michael D Henderson. All rights reserved.
+//  Portions Copyright (c) 1990 by John Walker and placed into the public domain.
+//
+//			      ATLMAIN.C
+//
+// Main driver program for interactive ATLAST
+//
+// Designed and implemented in January of 1990 by John Walker.
+//
 
 #include <stdio.h>
 #include <stdlib.h>

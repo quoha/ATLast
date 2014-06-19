@@ -1,8 +1,13 @@
-/*
-
- Test primitive definition in Atlast
-
- */
+//
+//  ATLast/primdeftest.c
+//
+//  Created by John Walker in January of 1990.
+//
+//  Copyright (c) 1990 John Walkder. All rights reserved.
+//
+//
+// Test primitive definition in Atlast
+//
 
 #if 0
 #include <stdio.h>

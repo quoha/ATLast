@@ -1,17 +1,20 @@
-/*
-
- A T L A S T
-
- Autodesk Threaded Language Application System Toolkit
-
- Main Interpreter and Compiler
-
- Designed and implemented in January of 1990 by John Walker.
-
- This program is in the public domain.
-
- https://www.fourmilab.ch/atlast/atlast.html
- */
+//
+//  ATLast/atlast.c
+//
+//  Created by Michael Henderson on 6/19/14.
+//  Copyright (c) 2014 Michael D Henderson. All rights reserved.
+//  Portions Copyright (c) 1990 by John Walker and placed into the public domain.
+//
+// A T L A S T
+//
+// Autodesk Threaded Language Application System Toolkit
+//
+// Main Interpreter and Compiler
+//
+// Designed and implemented in January of 1990 by John Walker.
+//
+// https://www.fourmilab.ch/atlast/atlast.html
+//
 
 #include <stdio.h>
 #include <ctype.h>
