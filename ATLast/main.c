@@ -1,14 +1,18 @@
+// A T L A S T
 //
 //  ATLast/main.c
 //
+//  Derived from code designed and implemented 1990 by John Walker
+//  and placed into the public domain by him.
+//  Original at https://www.fourmilab.ch/atlast/atlast.html
+//
 //  Created by Michael Henderson on 6/19/14.
-//  Copyright (c) 2014 Michael D Henderson. All rights reserved.
+//  Changes Copyright (c) 2014 Michael D Henderson. All rights reserved.
+//
 //
 //			      ATLMAIN.C
 //
 // Main driver program for interactive ATLAST
-//
-// Designed and implemented in January of 1990 by John Walker.
 //
 
 #include <stdio.h>

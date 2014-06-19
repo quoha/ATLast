@@ -1,10 +1,13 @@
+// A T L A S T
 //
 //  ATLast/primdeftest.c
 //
 //  Created by John Walker in January of 1990.
-//
 //  Copyright (c) 1990 John Walkder. All rights reserved.
+//  Original at https://www.fourmilab.ch/atlast/atlast.html
 //
+//  Updated by Michael Henderson on 6/19/14.
+//  Changes Copyright (c) 2014 Michael D Henderson. All rights reserved.
 //
 // Test primitive definition in Atlast
 //

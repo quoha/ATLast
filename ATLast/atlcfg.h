@@ -1,3 +1,4 @@
+// A T L A S T
 //
 //  ATLast/atlcfg.h
 //

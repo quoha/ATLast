@@ -1,17 +1,17 @@
+// A T L A S T
 //
 //  ATLast/atlast.h
 //
-//  Created by Michael Henderson on 6/19/14.
-//  Copyright (c) 2014 Michael D Henderson. All rights reserved.
-//  Portions Copyright (c) 1990 by John Walker and placed into the public domain.
+//  Derived from code designed and implemented 1990 by John Walker
+//  and placed into the public domain by him.
+//  Original at https://www.fourmilab.ch/atlast/atlast.html
 //
-//  A T L A S T
+//  Created by Michael Henderson on 6/19/14.
+//  Changes Copyright (c) 2014 Michael D Henderson. All rights reserved.
 //
 //  Autodesk Threaded Language Application System Toolkit
 //
 //  Program Linkage Definitions
-//
-//   Designed and implemented in January of 1990 by John Walker.
 //
 //   This  module  contains  the  definitions  needed by programs that
 //   invoke the ATLAST system.	It does contain the  definitions  used

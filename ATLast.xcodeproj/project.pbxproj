@@ -68,14 +68,14 @@
 		2D360381195289AD009CF143 /* ATLast */ = {
 			isa = PBXGroup;
 			children = (
-				2D36038B19528A8A009CF143 /* atlast.c */,
-				2D36038C19528A8A009CF143 /* atlast.h */,
-				2D36038D19528A8A009CF143 /* atldef.h */,
-				2D3603941953624D009CF143 /* atltypes.h */,
-				2D36038F19528A8A009CF143 /* primdeftest.c */,
-				2D360382195289AD009CF143 /* main.c */,
-				2D360384195289AD009CF143 /* ATLast.1 */,
 				2D360393195354D7009CF143 /* atlcfg.h */,
+				2D3603941953624D009CF143 /* atltypes.h */,
+				2D36038D19528A8A009CF143 /* atldef.h */,
+				2D36038C19528A8A009CF143 /* atlast.h */,
+				2D360382195289AD009CF143 /* main.c */,
+				2D36038B19528A8A009CF143 /* atlast.c */,
+				2D36038F19528A8A009CF143 /* primdeftest.c */,
+				2D360384195289AD009CF143 /* ATLast.1 */,
 			);
 			path = ATLast;
 			sourceTree = "<group>";

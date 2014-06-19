@@ -7,11 +7,17 @@
 //
 // A T L A S T
 //
+//  ATLast/atldef.h
+//
+//  Designed and implemented in January of 1990 by John Walker.
+//  Original at https://www.fourmilab.ch/atlast/atlast.html
+//
+//  Created by Michael Henderson on 6/18/14.
+//  Changes Copyright (c) 2014 Michael D Henderson. All rights reserved.
+//
 // Autodesk Threaded Language Application System Toolkit
 //
 // Definitions for components of ATLAST
-//
-// Designed and implemented in January of 1990 by John Walker.
 //
 // This  file	contains the definitions for modules within the ATLAST
 // language system itself.  Definitions used by programs that link to
