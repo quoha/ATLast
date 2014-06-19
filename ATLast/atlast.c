@@ -10,6 +10,7 @@
 
  This program is in the public domain.
 
+ https://www.fourmilab.ch/atlast/atlast.html
  */
 
 #include <stdio.h>
