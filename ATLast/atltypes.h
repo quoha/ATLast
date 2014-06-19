@@ -1,5 +1,7 @@
 // A T L A S T
 //
+// Autodesk Threaded Language Application System Toolkit
+//
 //  ATLast/atltypes.h
 //
 //  Derived from code designed and implemented 1990 by John Walker

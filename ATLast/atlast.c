@@ -1,5 +1,7 @@
 // A T L A S T
 //
+// Autodesk Threaded Language Application System Toolkit
+//
 //  ATLast/atlast.c
 //
 //  Derived from code designed and implemented 1990 by John Walker
@@ -8,8 +10,6 @@
 //
 //  Created by Michael Henderson on 6/19/14.
 //  Changes Copyright (c) 2014 Michael D Henderson. All rights reserved.
-//
-// Autodesk Threaded Language Application System Toolkit
 //
 // Main Interpreter and Compiler
 //

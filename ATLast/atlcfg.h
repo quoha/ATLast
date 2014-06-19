@@ -1,5 +1,7 @@
 // A T L A S T
 //
+// Autodesk Threaded Language Application System Toolkit
+//
 //  ATLast/atlcfg.h
 //
 //  Created by Michael Henderson on 6/19/14.
