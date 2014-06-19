@@ -116,6 +116,9 @@ dictword  *atl_lookup(char *name);
 void       atl_primdef(struct primfcn *pt);
 dictword  *atl_vardef(char *name, int size);
 
+
+int atl__token(char **cp);
+
 #endif
 // end of ATLast/atltypes.h
 
@@ -700,7 +703,7 @@ static void ucase(char *c) {
 
 /*  TOKEN  --  Scan a token and return its type.  */
 
-static int token(char **cp) {
+int atl__token(char **cp) {
     char *sp = *cp;
 
     while (True) {
@@ -2403,37 +2406,40 @@ prim P_qbranch(void) {
     Pop;
 }
 
-/* Compile IF word */
+// if -- Compile IF word
+//
 prim P_if(void) {
     Compiling;
-    Compconst(s_qbranch);	      /* Compile question branch */
+    Compconst(s_qbranch);       // Compile question branch
     So(1);
-    Push = (stackitem) hptr;	      /* Save backpatch address on stack */
-    Compconst(0);		      /* Compile place-holder address cell */
+    Push = (stackitem) hptr;    // Save backpatch address on stack
+    Compconst(0);               // Compile place-holder address cell
 }
 
-/* Compile ELSE word */
+// else -- Compile ELSE word
+//
 prim P_else(void) {
     stackitem *bp;
 
     Compiling;
     Sl(1);
-    Compconst(s_branch);	      /* Compile branch around other clause */
-    Compconst(0);		      /* Compile place-holder address cell */
+    Compconst(s_branch);            // Compile branch around other clause
+    Compconst(0);                   // Compile place-holder address cell
     Hpc(S0);
-    bp = (stackitem *) S0;	      /* Get IF backpatch address */
+    bp = (stackitem *) S0;          // Get IF backpatch address
     *bp = hptr - bp;
-    S0 = (stackitem) (hptr - 1);      /* Update backpatch for THEN */
+    S0 = (stackitem) (hptr - 1);    // Update backpatch for THEN
 }
 
-/* Compile THEN word */
+// then -- Compile THEN word
+//
 prim P_then(void) {
     stackitem *bp;
 
     Compiling;
     Sl(1);
     Hpc(S0);
-    bp = (stackitem *) S0;	      /* Get IF/ELSE backpatch address */
+    bp = (stackitem *) S0;          // Get IF/ELSE backpatch address
     *bp = hptr - bp;
     Pop;
 }
@@ -2712,31 +2718,32 @@ Exported void P_dodoes(void) {
     Push = (stackitem) (((stackitem *) curword) + Dictwordl);
 }
 
-/* Specify method for word */
+// does> -- specify method for word
+//
 prim P_does(void) {
 
-    /* O.K., we were compiling our way through this definition and we've
-     encountered the Dreaded and Dastardly Does.  Here's what we do
-     about it.  The problem is that when we execute the word, we
-     want to push its address on the stack and call the code for the
-     DOES> clause by diverting the IP to that address.  But...how
-     are we to know where the DOES> clause goes without adding a
-     field to every word in the system just to remember it.  Recall
-     that since this system is portable we can't cop-out through
-     machine code.  Further, we can't compile something into the
-     word because the defining code may have already allocated heap
-     for the word's body.  Yukkkk.  Oh well, how about this?  Let's
-     copy any and all heap allocated for the word down one stackitem
-     and then jam the DOES> code address BEFORE the link field in
-     the word we're defining.
-
-     Then, when (DOES>) (P_dodoes) is called to execute the word, it
-     will fetch that code address by backing up past the start of
-     the word and seting IP to it.  Note that FORGET must recognise
-     such words (by the presence of the pointer to P_dodoes() in
-     their wcode field, in case you're wondering), and make sure to
-     deallocate the heap word containing the link when a
-     DOES>-defined word is deleted.  */
+    // O.K., we were compiling our way through this definition and we've
+    // encountered the Dreaded and Dastardly Does.  Here's what we do
+    // about it.  The problem is that when we execute the word, we
+    // want to push its address on the stack and call the code for the
+    // DOES> clause by diverting the IP to that address.  But...how
+    // are we to know where the DOES> clause goes without adding a
+    // field to every word in the system just to remember it.  Recall
+    // that since this system is portable we can't cop-out through
+    // machine code.  Further, we can't compile something into the
+    // word because the defining code may have already allocated heap
+    // for the word's body.  Yukkkk.  Oh well, how about this?  Let's
+    // copy any and all heap allocated for the word down one stackitem
+    // and then jam the DOES> code address BEFORE the link field in
+    // the word we're defining.
+    //
+    // Then, when (DOES>) (P_dodoes) is called to execute the word, it
+    // will fetch that code address by backing up past the start of
+    // the word and seting IP to it.  Note that FORGET must recognise
+    // such words (by the presence of the pointer to P_dodoes() in
+    // their wcode field, in case you're wondering), and make sure to
+    // deallocate the heap word containing the link when a
+    // DOES>-defined word is deleted.
 
     if (createword != NULL) {
         stackitem *sp = ((stackitem *) createword), *hp;
@@ -2744,57 +2751,61 @@ prim P_does(void) {
         Rsl(1);
         Ho(1);
 
-        /* Copy the word definition one word down in the heap to
-         permit us to prefix it with the DOES clause address. */
+        // Copy the word definition one word down in the heap to
+        // permit us to prefix it with the DOES clause address.
 
-        for (hp = hptr - 1; hp >= sp; hp--)
+        for (hp = hptr - 1; hp >= sp; hp--) {
             *(hp + 1) = *hp;
-        hptr++; 		      /* Expand allocated length of word */
-        *sp++ = (stackitem) ip;       /* Store DOES> clause address before
-                                       word's definition structure. */
-        createword = (dictword *) sp; /* Move word definition down 1 item */
-        createword->wcode = P_dodoes; /* Set code field to indirect jump */
+        }
+        hptr++; 		      // Expand allocated length of word
+        *sp++ = (stackitem) ip;       // Store DOES> clause address before
+                                      // word's definition structure.
+        createword = (dictword *) sp; // Move word definition down 1 item
+        createword->wcode = P_dodoes; // Set code field to indirect jump
 
-        /* Now simulate an EXIT to bail out of the definition without
-         executing the DOES> clause at definition time. */
+        // Now simulate an EXIT to bail out of the definition without
+        // executing the DOES> clause at definition time.
 
-        ip = R0;		      /* Set IP to top of return stack */
+        ip = R0;		      // Set IP to top of return stack
 #ifdef WALKBACK
         wbptr = (wbptr > wback) ? wbptr - 1 : wback;
 #endif
-        Rpop;			      /* Pop the return stack */
+        Rpop;			      // Pop the return stack
     }
 }
 
-/* Begin compilation */
+// : -- begin compilation
+//
 prim P_colon(void) {
-    state = Truth;		      /* Set compilation underway */
-    P_create(); 		      /* Create conventional word */
+    state = Truth;		      // Set compilation underway
+    P_create(); 		      // Create conventional word
 }
 
-/* End compilation */
+// ; -- end compilation
+//
 prim P_semicolon(void) {
     Compiling;
     Ho(1);
     Hstore = s_exit;
-    state = Falsity;		      /* No longer compiling */
-    /* We wait until now to plug the P_nest code so that it will be
-     present only in completed definitions. */
-    if (createword != NULL)
-        createword->wcode = P_nest;   /* Use P_nest for code */
-    createword = NULL;		      /* Flag no word being created */
+    state = Falsity;		      // No longer compiling
+
+    // We wait until now to plug the P_nest code so that it will be
+    // present only in completed definitions.
+    if (createword != NULL) {
+        createword->wcode = P_nest;   // Use P_nest for code
+    }
+    createword = NULL;		      // Flag no word being created
 }
 
-/* Take address of next word */
+// ` -- take address of next word
+//
 prim P_tick(void) {
-    int i;
+    // Try to get next symbol from the input stream.  If
+    // we can't, and we're executing a compiled word,
+    // report an error.  Since we can't call back to the
+    // calling program for more input, we're stuck.
 
-    /* Try to get next symbol from the input stream.  If
-     we can't, and we're executing a compiled word,
-     report an error.  Since we can't call back to the
-     calling program for more input, we're stuck. */
-
-    i = token(&instream);	      /* Scan for next token */
+    int i = atl__token(&instream);	      // Scan for next token
     if (i != TokNull) {
         if (i == TokWord) {
             dictword *di;
@@ -2811,14 +2822,14 @@ prim P_tick(void) {
             P_abort();
         }
     } else {
-        /* O.K., there was nothing in the input stream.  Set the
-         tickpend flag to cause the compilation address of the next
-         token to be pushed when it's supplied on a subsequent input
-         line. */
+        // O.K., there was nothing in the input stream.  Set the
+        // tickpend flag to cause the compilation address of the next
+        // token to be pushed when it's supplied on a subsequent input
+        // line.
         if (ip == NULL) {
-            tickpend = True;	      /* Set tick pending */
+            tickpend = True;	      // Set tick pending
         } else {
-            V printf("\nWord requested by ` not on same input line.\n");
+            fprintf(stderr, "\nword requested by ` not on same input line.\n");
             P_abort();
         }
     }
@@ -2858,19 +2869,20 @@ prim P_state(void) {
 
 #ifdef DEFFIELDS
 
-/* Look up word in dictionary */
+// Look up word in dictionary
+//
 prim P_find(void) {
     dictword *dw;
 
     Sl(1);
     So(1);
     Hpc(S0);
-    V strcpy(tokbuf, (char *) S0);    /* Use built-in token buffer... */
-    dw = lookup(tokbuf);              /* So ucase() in lookup() doesn't wipe */
-    /* the token on the stack */
+    strcpy(tokbuf, (char *) S0);        // Use built-in token buffer...
+    dw = lookup(tokbuf);                // So ucase() in lookup() doesn't wipe
+    // the token on the stack
     if (dw != NULL) {
         S0 = (stackitem) dw;
-        /* Push immediate flag */
+        // Push immediate flag
         Push = (dw->wname[0] & IMMEDIATE) ? 1 : -1;
     } else {
         Push = 0;
@@ -2879,26 +2891,32 @@ prim P_find(void) {
 
 #define DfOff(fld)  (((char *) &(dict->fld)) - ((char *) dict))
 
-/* Find name field from compile addr */
+// Find name field from compile addr
+//
 prim P_toname(void) {
     Sl(1);
     S0 += DfOff(wname);
 }
 
-/* Find link field from compile addr */
+// Find link field from compile addr
+//
 prim P_tolink(void) {
-    if (DfOff(wnext) != 0) V printf("\n>LINK Foulup--wnext is not at zero!\n");
-    /*  Sl(1);
-     S0 += DfOff(wnext);  */	      /* Null operation.  Wnext is first */
+    if (DfOff(wnext) != 0) {
+        fprintf(stderr, "\n>LINK Foulup--wnext is not at zero!\n");
+    }
+    // Sl(1); S0 += DfOff(wnext);
+    // Null operation.  Wnext is first
 }
 
-/* Get compile address from body */
+// Get compile address from body
+//
 prim P_frombody(void) {
     Sl(1);
     S0 -= Dictwordl * sizeof(stackitem);
 }
 
-/* Get compile address from name */
+// Get compile address from name
+//
 prim P_fromname(void) {
     Sl(1);
     S0 -= DfOff(wname);
@@ -3927,7 +3945,7 @@ int atl_eval(char *sp) {
     }
 #endif // PROLOGUE
 
-    while ((evalstat == ATL_SNORM) && (i = token(&instream)) != TokNull) {
+    while ((evalstat == ATL_SNORM) && (i = atl__token(&instream)) != TokNull) {
         dictword *di;
 
         switch (i) {
