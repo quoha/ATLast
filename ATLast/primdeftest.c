@@ -1,8 +1,8 @@
 /*
 
-    	Test primitive definition in Atlast
-	
-*/
+ Test primitive definition in Atlast
+
+ */
 
 #if 0
 #include <stdio.h>
@@ -12,14 +12,12 @@
 #include <time.h>
 #include "atldef.h"
 
-prim ptime()
-{
+prim ptime(void) {
     So(1);
     Push = time(NULL);
 }
 
-prim phhmmss()
-{
+prim phhmmss(void) {
     struct tm *lt;
 
     Sl(1);
@@ -36,8 +34,7 @@ static struct primfcn timep[] = {
     {NULL,      (codeptr) 0}
 };
 
-int main()
-{
+int main(int argc, const char *argv[]) {
     char t[132];
     atl_init();
     atl_primdef(timep);

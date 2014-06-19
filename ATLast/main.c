@@ -12,7 +12,6 @@
 #include <stdlib.h>
 #include <ctype.h>
 #include <string.h>
-
 #include <signal.h>
 #include "atldef.h"
 
@@ -20,6 +19,12 @@
 #define TRUE	1
 
 #define V   (void)
+
+#ifdef FBmode
+#define OUR_READ_MODE "rb"
+#else
+#define OUR_READ_MODE "r"
+#endif
 
 /*  Globals imported  */
 
@@ -31,20 +36,17 @@
  just turn this code off or, better still, replace it
  with the equivalent on your system.  */
 
-static void ctrlc(sig)
-int sig;
-{
-    if (sig == SIGINT)
+static void ctrlc(int sig) {
+    if (sig == SIGINT) {
         atl_break();
+    }
 }
+
 #endif /* HIGHC */
 
 /*  MAIN  --  Main program.  */
 
-int main(argc, argv)
-int argc;
-char *argv[];
-{
+int main(int argc, char *argv[]) {
     int i;
     int fname = FALSE, defmode = FALSE;
     FILE *ifp;
@@ -60,8 +62,9 @@ char *argv[];
         cp = argv[i];
         if (*cp == '-') {
             opt = *(++cp);
-            if (islower(opt))
+            if (islower(opt)) {
                 opt = toupper(opt);
+            }
             switch (opt) {
 
                 case 'D':
@@ -110,8 +113,9 @@ char *argv[];
             }
             fname = TRUE;
             V strcpy(fn, cp);
-            if (strchr(fn, '.') == NULL)
+            if (strchr(fn, '.') == NULL) {
                 V strcat(fn, ".atl");
+            }
             ifp = fopen(fn, "r");
             if (ifp == NULL) {
                 V fprintf(stderr, "Unable to open file %s\n", fn);
@@ -129,15 +133,10 @@ char *argv[];
         FILE *fp;
 
         V strcpy(fn, include[i]);
-        if (strchr(fn, '.') == NULL)
+        if (strchr(fn, '.') == NULL) {
             V strcat(fn, ".atl");
-        fp = fopen(fn,
-#ifdef FBmode
-                   "rb"
-#else
-                   "r"
-#endif
-                   );
+        }
+        fp = fopen(fn, OUR_READ_MODE);
         if (fp == NULL) {
             V fprintf(stderr, "Unable to open include file %s\n",
                       include[i]);
@@ -152,17 +151,18 @@ char *argv[];
 
     /* Now that all the preliminaries are out of the way, fall into
      the main ATLAST execution loop. */
-    
+
 #ifndef HIGHC
     V signal(SIGINT, ctrlc);
 #endif /* HIGHC */
     while (TRUE) {
         char t[132];
-        
-        if (!fname)
+
+        if (!fname) {
             V printf(atl_comment ? "(  " :  /* Show pending comment */
                      /* Show compiling state */
                      (((heap != NULL) && state) ? ":> " : "-> "));
+        }
         if (fgets(t, 132, ifp) == NULL) {
             if (fname && defmode) {
                 fname = defmode = FALSE;
@@ -173,7 +173,8 @@ char *argv[];
         }
         V atl_eval(t);
     }
-    if (!fname)
+    if (!fname) {
         V printf("\n");
-        return 0;
+    }
+    return 0;
 }
