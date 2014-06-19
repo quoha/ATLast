@@ -3899,31 +3899,32 @@ int atl_prologue(char *sp) {
     return 0;
 }
 
-/*  ATL_EVAL  --  Evaluate a string containing ATLAST words.  */
-
+// ATL_EVAL  --  Evaluate a string containing ATLAST words.
+//
 int atl_eval(char *sp) {
     int i;
 
-#undef Memerrs
+#undef  Memerrs
 #define Memerrs evalstat
     instream = sp;
-    evalstat = ATL_SNORM;	      /* Set normal evaluation status */
+    evalstat = ATL_SNORM;	      // Set normal evaluation status
 #ifdef BREAK
-    broken = False;		      /* Reset asynchronous break */
+    broken = False;		      // Reset asynchronous break
 #endif
 
-    /* If automatic prologue processing is configured and we haven't yet
-     initialised, check if this is a prologue statement.	If so, execute
-     it.	Otherwise automatically initialise with the memory specifications
-     currently operative. */
+    // If automatic prologue processing is configured and we haven't yet
+    // initialised, check if this is a prologue statement. If so, execute
+    // it. Otherwise automatically initialise with the memory specifications
+    // currently operative.
 
 #ifdef PROLOGUE
     if (dict == NULL) {
-        if (atl_prologue(sp))
+        if (atl_prologue(sp)) {
             return evalstat;
+        }
         atl_init();
     }
-#endif /* PROLOGUE */
+#endif // PROLOGUE
 
     while ((evalstat == ATL_SNORM) && (i = token(&instream)) != TokNull) {
         dictword *di;
@@ -3948,8 +3949,9 @@ int atl_eval(char *sp) {
                                 evalstat = ATL_FORGETPROT;
                                 di = NULL;
                             }
-                            if (strcmp(dw->wname + 1, tokbuf) == 0)
+                            if (strcmp(dw->wname + 1, tokbuf) == 0) {
                                 break;
+                            }
                             dw = dw->wnext;
                         }
 
