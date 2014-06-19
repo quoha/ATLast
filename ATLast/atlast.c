@@ -980,7 +980,8 @@ prim P_constant()		      /* Declare constant */
 #ifdef ARRAY
 prim P_arraysub()		      /* Array subscript calculation */
 {				      /* sub1 sub2 ... subn -- addr */
-    int i, offset, esize, nsubs;
+    int i;
+    long offset, esize, nsubs;
     stackitem *array;
     stackitem *isp;
 
@@ -1014,7 +1015,8 @@ prim P_arraysub()		      /* Array subscript calculation */
 
 prim P_array()			      /* Declare array */
 {				      /* sub1 sub2 ... subn n esize -- array */
-    int i, nsubs, asize = 1;
+    int i;
+    long nsubs, asize = 1;
     stackitem *isp;
 
     Sl(2);
@@ -3726,7 +3728,7 @@ V printf(" Forgetting DOES> word. ");
 		if (stringlit) {
 		    stringlit = False;
 		    if (state) {
-			int l = (strlen(tokbuf) + 1 + sizeof(stackitem)) /
+			size_t l = (strlen(tokbuf) + 1 + sizeof(stackitem)) /
 				    sizeof(stackitem);
 			Ho(l);
 			*((char *) hptr) = l;  /* Store in-line skip length */
@@ -3737,7 +3739,7 @@ V printf(" Forgetting DOES> word. ");
 		    }
 		} else {
 		    if (state) {
-			int l = (strlen(tokbuf) + 1 + sizeof(stackitem)) /
+			size_t l = (strlen(tokbuf) + 1 + sizeof(stackitem)) /
 				    sizeof(stackitem);
 			Ho(l + 1);
 			/* Compile string literal instruction, followed by

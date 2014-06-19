@@ -4,6 +4,7 @@
 	
 */
 
+#if 0
 #include <stdio.h>
 #include <stdlib.h>
 #include <ctype.h>
@@ -45,3 +46,5 @@ int main()
         atl_eval(t);
     return 0;
 }
+
+#endif
