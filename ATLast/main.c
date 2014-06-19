@@ -4142,154 +4142,134 @@ int atl_eval(char *sp) {
 #define OUR_READ_MODE "r"
 #endif
 
-/*  Globals imported  */
+// Globals imported
 
-#ifndef HIGHC
-
-/*  CatchCtrlC  --  Catch a user console break signal.  If your C library
- does not provide this Unix-compatibile facility
- (registered with the call on signal() in main()),
- just turn this code off or, better still, replace it
- with the equivalent on your system.  */
-
+//=======================================================================
+// CatchCtrlC  --  Catch a user console break signal.  If your C library
+// does not provide this Unix-compatibile facility (registered with the
+// call on signal() in main()), just turn this code off or, better still,
+// replace it with the equivalent on your system.
+//
 static void CatchCtrlC(int sig) {
     if (sig == SIGINT) {
         atl_break();
     }
 }
 
-#endif /* HIGHC */
+//=======================================================================
+//
+int main(int argc, const char *argv[]) {
+    int   idx;
+    int   fname = FALSE, defmode = FALSE;
+    FILE *fpInput = stdin;
 
-/*  MAIN  --  Main program.  */
+#define MAX_FNAME_LENGTH 1024
 
-int main(int argc, char *argv[]) {
-    int i;
-    int fname = FALSE, defmode = FALSE;
-    FILE *ifp;
-    char *include[20];
-    int in = 0;
-#define PR(x) (void) fprintf(stderr, x)
+    int   statusInclude;
+    char  fileNameInclude[MAX_FNAME_LENGTH];
+    FILE *fpInclude;
 
-    PR("ATLAST 1.2 (2007-10-07) This program is in the public domain.\n");
-    ifp = stdin;
-    for (i = 1; i < argc; i++) {
-        char *cp, opt;
+    fprintf(stderr, "ATLast 1.2a (2014/06/19)\n");
+    for (idx = 1; idx < argc; idx++) {
+        const char *cp = argv[idx];
 
-        cp = argv[i];
         if (*cp == '-') {
-            opt = *(++cp);
-            if (islower(opt)) {
-                opt = toupper(opt);
-            }
+            const char opt = *(++cp);
             switch (opt) {
-
-                case 'D':
+                case 'd':
                     defmode = TRUE;
                     break;
-
-                case 'H':
+                case 'h':
                     atl_heaplen = atol(cp + 1);
                     break;
-
-                case 'I':
-                    include[in++] = cp + 1;
+                case 'i':
+                    // load each include as passed in
+                    //
+                    strncpy(fileNameInclude, cp, MAX_FNAME_LENGTH - 5);
+                    if (strchr(fileNameInclude, '.') == NULL) {
+                        strcat(fileNameInclude, ".atl");
+                    }
+                    fpInclude = fopen(fileNameInclude, OUR_READ_MODE);
+                    if (!fpInclude) {
+                        perror(fileNameInclude);
+                        fprintf(stderr, "error:\ttnable to open include file %s\n", fileNameInclude);
+                        return 1;
+                    }
+                    statusInclude = atl_load(fpInclude);
+                    fclose(fpInclude);
+                    if (statusInclude != ATL_SNORM) {
+                        fprintf(stderr, "\nerror:\t%d in include file %s\n", statusInclude, fileNameInclude);
+                        return 1;
+                    }
                     break;
-
-                case 'R':
+                case 'r':
                     atl_rstklen = atol(cp + 1);
                     break;
-
-                case 'S':
+                case 's':
                     atl_stklen = atol(cp + 1);
                     break;
-
-                case 'T':
+                case 't':
                     atl_trace = TRUE;
                     break;
-
                 case '?':
-                case 'U':
-                    PR("Usage:  ATLAST [options] [inputfile]\n");
-                    PR("        Options:\n");
-                    PR("           -D     Treat file as definitions\n");
-                    PR("           -Hn    Heap length n\n");
-                    PR("           -Ifile Include named definition file\n");
-                    PR("           -Rn    Return stack length n\n");
-                    PR("           -Sn    Stack length n\n");
-                    PR("           -T     Set TRACE mode\n");
-                    PR("           -U     Print this message\n");
+                case 'u':
+                    fprintf(stderr, "Usage:  ATLAST [options] [inputfile]\n");
+                    fprintf(stderr, "        Options:\n");
+                    fprintf(stderr, "           -d     treat file as definitions\n");
+                    fprintf(stderr, "           -ifile include named definition file\n");
+                    fprintf(stderr, "           -h##   set heap         length to ##\n");
+                    fprintf(stderr, "           -r##   set return stack length to ##\n");
+                    fprintf(stderr, "           -s##   set stack        length to ##\n");
+                    fprintf(stderr, "           -t     set TRACE mode\n");
+                    fprintf(stderr, "           -u     print this message\n");
                     return 0;
             }
-        } else {
-            char fn[132];
-
-            if (fname) {
-                PR("Duplicate file name.\n");
-                return 1;
-            }
-            fname = TRUE;
-            V strcpy(fn, cp);
-            if (strchr(fn, '.') == NULL) {
-                V strcat(fn, ".atl");
-            }
-            ifp = fopen(fn, "r");
-            if (ifp == NULL) {
-                V fprintf(stderr, "Unable to open file %s\n", fn);
-                return 1;
-            }
-        }
-    }
-
-    /* If any include files were named, load each in turn before we execute the program. */
-
-    for (i = 0; i < in; i++) {
-        int stat;
-        char fn[132];
-        FILE *fp;
-
-        V strcpy(fn, include[i]);
-        if (strchr(fn, '.') == NULL) {
-            V strcat(fn, ".atl");
-        }
-        fp = fopen(fn, OUR_READ_MODE);
-        if (fp == NULL) {
-            V fprintf(stderr, "Unable to open include file %s\n",
-                      include[i]);
+        } else if (fname) {
+            fprintf(stderr, "error:\tduplicate file name.\n");
             return 1;
-        }
-        stat = atl_load(fp);
-        V fclose(fp);
-        if (stat != ATL_SNORM) {
-            V printf("\nError %d in include file %s\n", stat, include[i]);
+        } else {
+            char fn[MAX_FNAME_LENGTH];
+
+            fname = TRUE;
+            strncpy(fn, cp, MAX_FNAME_LENGTH - 5);
+            if (strchr(fn, '.') == NULL) {
+                strcat(fn, ".atl");
+            }
+            fpInput = fopen(fn, "r");
+            if (fpInput == NULL) {
+                perror(fn);
+                fprintf(stderr, "error:\tunable to open file %s\n", fn);
+                return 1;
+            }
         }
     }
 
-    /* Now that all the preliminaries are out of the way, fall into
-     the main ATLAST execution loop. */
+    // Now that all the preliminaries are out of the way, fall into the main ATLAST execution loop.
 
 #ifndef HIGHC
-    V signal(SIGINT, CatchCtrlC);
-#endif /* HIGHC */
+    signal(SIGINT, CatchCtrlC);
+#endif // HIGHC
+
     while (TRUE) {
         char t[132];
 
         if (!fname) {
-            V printf(atl_comment ? "(  " :  /* Show pending comment */
-                     /* Show compiling state */
-                     (((heap != NULL) && state) ? ":> " : "-> "));
+            // prompt shows pending comment and compiling state
+            fprintf(stderr, atl_comment ? "(  " : (((heap != NULL) && state) ? ":> " : "-> "));
         }
-        if (fgets(t, 132, ifp) == NULL) {
+        if (fgets(t, 132, fpInput) == NULL) {
             if (fname && defmode) {
                 fname = defmode = FALSE;
-                ifp = stdin;
+                fpInput = stdin;
                 continue;
             }
             break;
         }
-        V atl_eval(t);
+        atl_eval(t);
     }
     if (!fname) {
-        V printf("\n");
+        fprintf(stderr, "\n");
     }
+
     return 0;
 }
