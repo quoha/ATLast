@@ -10,7 +10,6 @@
 		2D360383195289AD009CF143 /* main.c in Sources */ = {isa = PBXBuildFile; fileRef = 2D360382195289AD009CF143 /* main.c */; };
 		2D360385195289AD009CF143 /* ATLast.1 in CopyFiles */ = {isa = PBXBuildFile; fileRef = 2D360384195289AD009CF143 /* ATLast.1 */; };
 		2D36039019528A8A009CF143 /* atlast.c in Sources */ = {isa = PBXBuildFile; fileRef = 2D36038B19528A8A009CF143 /* atlast.c */; };
-		2D36039119528A8A009CF143 /* atlmain.c in Sources */ = {isa = PBXBuildFile; fileRef = 2D36038E19528A8A009CF143 /* atlmain.c */; };
 		2D36039219528A8A009CF143 /* primdeftest.c in Sources */ = {isa = PBXBuildFile; fileRef = 2D36038F19528A8A009CF143 /* primdeftest.c */; };
 /* End PBXBuildFile section */
 
@@ -34,7 +33,6 @@
 		2D36038B19528A8A009CF143 /* atlast.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = atlast.c; sourceTree = "<group>"; };
 		2D36038C19528A8A009CF143 /* atlast.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = atlast.h; sourceTree = "<group>"; };
 		2D36038D19528A8A009CF143 /* atldef.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = atldef.h; sourceTree = "<group>"; };
-		2D36038E19528A8A009CF143 /* atlmain.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = atlmain.c; sourceTree = "<group>"; };
 		2D36038F19528A8A009CF143 /* primdeftest.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = primdeftest.c; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -71,7 +69,6 @@
 				2D36038B19528A8A009CF143 /* atlast.c */,
 				2D36038C19528A8A009CF143 /* atlast.h */,
 				2D36038D19528A8A009CF143 /* atldef.h */,
-				2D36038E19528A8A009CF143 /* atlmain.c */,
 				2D36038F19528A8A009CF143 /* primdeftest.c */,
 				2D360382195289AD009CF143 /* main.c */,
 				2D360384195289AD009CF143 /* ATLast.1 */,
@@ -132,7 +129,6 @@
 			files = (
 				2D36039019528A8A009CF143 /* atlast.c in Sources */,
 				2D36039219528A8A009CF143 /* primdeftest.c in Sources */,
-				2D36039119528A8A009CF143 /* atlmain.c in Sources */,
 				2D360383195289AD009CF143 /* main.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
