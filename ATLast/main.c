@@ -675,8 +675,9 @@ static Boolean ctickpend = atlFalse;     /* Compile-time tick ['] pending */
 static Boolean cbrackpend = atlFalse;    /* [COMPILE] pending */
 Exported dictword *createword = NULL; /* Address of word pending creation */
 static Boolean stringlit = atlFalse;     /* String literal anticipated */
+
 #ifdef BREAK
-static Boolean broken = atlFalse;	      /* Asynchronous break received */
+static volatile Boolean broken = atlFalse;  // asynchronous break received
 #endif
 
 #ifdef COPYRIGHT
@@ -685,7 +686,7 @@ static Boolean broken = atlFalse;	      /* Asynchronous break received */
 static
 #endif
 #endif
-char copyright[] = "ATLAST: This program is in the public domain.";
+char copyright[] = "ATLAST: Changes Copyright (C) 2014 Michael Henderson.";
 #endif
 
 /* The following static cells save the compile addresses of words
@@ -3859,13 +3860,12 @@ void atl_unwind(atl_statemark *mp) {
 
 #ifdef BREAK
 
-/*  ATL_BREAK  --  Asynchronously interrupt execution.	Note that this
- function only sets a flag, broken, that causes
- exword() to halt after the current word.  Since
- this can be called at any time, it daren't touch the
- system state directly, as it may be in an unstable
- condition. */
-
+// ATL_BREAK  --  Asynchronously interrupt execution.
+// Note that this function only sets a flag, broken, that causes
+// exword() to halt after the current word.  Since this can be
+// called at any time, it daren't touch the system state directly,
+// as it may be in an unstable condition.
+//
 void atl_break(void) {
     broken = atlTrue;		      /* Set break request */
 }
