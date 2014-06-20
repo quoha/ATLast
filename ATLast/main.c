@@ -228,13 +228,6 @@ void atl_unwind(atl_statemark *mp);
 #       define createword   atl__wd
 #   endif // NOMANGLE
 
-#   ifdef MEMSTAT
-#       ifndef NOMANGLE
-#           define stackmax    atl__sx
-#       endif // NOMANGLE
-stackitem *stackmax;
-#   endif
-
 #   ifdef ALIGNMENT
 #       ifndef NOMANGLE
 #           define rbuf0	    atl__r0
@@ -342,7 +335,7 @@ pragma On(PCC_msgs);		      /* High C compiler is brain-dead */
 #define Push    *stk++              // Push item onto stack
 
 #ifdef MEMSTAT
-#define Mss(n) if ((stk+(n))>stackmax) stackmax = stk+(n);
+#define Mss(n) if ((stk+(n))>atl__env->stackmax) atl__env->stackmax = stk+(n);
 #define Msr(n) if ((rstk+(n))>atl__env->rstackmax) atl__env->rstackmax = rstk+(n);
 #define Msh(n) if ((hptr+(n))>atl__env->heapmax) atl__env->heapmax = hptr+(n);
 #else
@@ -636,10 +629,6 @@ Exported int cstrbuf = 0;           /* Current temp string */
 static dictword **wback = NULL;     /* Walkback trace buffer */
 static dictword **wbptr;            /* Walkback trace pointer */
 #endif /* WALKBACK */
-
-#ifdef MEMSTAT
-Exported stackitem *stackmax;	      /* Stack maximum excursion */
-#endif
 
 #ifdef FILEIO
 static char *fopenmodes[] = {
@@ -989,7 +978,7 @@ void atl_memstat(void) {
 
     fprintf(stderr, "   %-12s %6ld    %6ld    %6ld       %3ld\n", "Stack",
             ((long) (stk - stack)),
-            ((long) (stackmax - stack)),
+            ((long) (atl__env->stackmax - stack)),
             atl__env->stkLength,
             (100L * (stk - stack)) / atl__env->stkLength);
     fprintf(stderr, "   %-12s %6ld    %6ld    %6ld       %3ld\n", "Return stack",
@@ -3654,7 +3643,7 @@ void atl_init(void) {
         }
         stk = stackbot = stack;
 #ifdef MEMSTAT
-        stackmax = stack;
+        atl__env->stackmax = stack;
 #endif
         stacktop = stack + atl__env->stkLength;
         if (rstack == NULL) {	      /* Allocate return stack if needed */
