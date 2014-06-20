@@ -430,6 +430,35 @@ pragma On(PCC_msgs);		      /* High C compiler is brain-dead */
 #endif
 // end of ATLast/atldef.h
 
+
+
+
+//---------------------------------------------------------------------------------------------------------------
+//---------------------------------------------------------------------------------------------------------------
+
+typedef struct atlenv atlenv;
+struct atlenv {
+    int (*nextToken)(char **cp);
+    char *inputBuffer;          // current input buffer
+
+};
+atlenv *atl__env = 0;
+
+atlenv *atl__NewInterpreter(void) {
+    atlenv *e = malloc(sizeof(*e));
+    if (!e) {
+        return e;
+    }
+    e->nextToken   = atl__token;
+    e->inputBuffer = 0;
+    return e;
+}
+
+//---------------------------------------------------------------------------------------------------------------
+//---------------------------------------------------------------------------------------------------------------
+
+
+
 // A T L A S T
 //
 // Autodesk Threaded Language Application System Toolkit
@@ -626,7 +655,6 @@ static char *fopenmodes[] = {
 #endif /* FILEIO */
 
 static char tokbuf[128];	      /* Token buffer */
-static char *instream = NULL;	      /* Current input stream line */
 static long tokint;		      /* Scanned integer */
 #ifdef REAL
 static atl_real tokreal;	      /* Scanned real number */
@@ -684,7 +712,7 @@ static char *alloc(unsigned int size) {
 
     /* printf("\nAlloc %u", size); */
     if (cp == NULL) {
-        V fprintf(stderr, "\n\nOut of memory!  %u bytes requested.\n", size);
+        fprintf(stderr, "\n\nOut of memory!  %u bytes requested.\n", size);
         abort();
     }
     return cp;
@@ -2109,7 +2137,7 @@ prim P_evaluate(void) {
     atl_statemark mk;
     atl_int scomm = atl_comment;      /* Stack comment pending state */
     dictword **sip = ip;	      /* Stack instruction pointer */
-    char *sinstr = instream;	      /* Stack input stream */
+    char *sinstr = atl__env->inputBuffer; // stack input stream
     char *estring;
 
     Sl(1);
@@ -2130,7 +2158,7 @@ prim P_evaluate(void) {
     }
     atl_comment = scomm;	      /* Unstack comment pending status */
     ip = sip;			      /* Unstack instruction pointer */
-    instream = sinstr;		      /* Unstack input stream */
+    atl__env->inputBuffer = sinstr; // unstack input stream
     So(1);
     Push = es;			      /* Return eval status on top of stack */
 }
@@ -2822,7 +2850,7 @@ prim P_tick(void) {
     // report an error.  Since we can't call back to the
     // calling program for more input, we're stuck.
 
-    int i = atl__token(&instream);	      // Scan for next token
+    int i = atl__token(&(atl__env->inputBuffer));   // scan for next token
     if (i != TokNull) {
         if (i == TokWord) {
             dictword *di;
@@ -3867,7 +3895,7 @@ int atl_load(FILE *fp) {
     atl_statemark mk;
     atl_int scomm = atl_comment;      /* Stack comment pending state */
     dictword **sip = ip;	      /* Stack instruction pointer */
-    char *sinstr = instream;	      /* Stack input stream */
+    char *sinstr = atl__env->inputBuffer;   // stack input stream
     int lineno = 0;		      /* Current line number */
 
     atl_errline = 0;		      /* Reset line number of error */
@@ -3893,7 +3921,7 @@ int atl_load(FILE *fp) {
     }
     atl_comment = scomm;	      /* Unstack comment pending status */
     ip = sip;			      /* Unstack instruction pointer */
-    instream = sinstr;		      /* Unstack input stream */
+    atl__env->inputBuffer = sinstr; // unstack input stream
     return es;
 }
 
@@ -3941,7 +3969,7 @@ int atl_eval(char *sp) {
 
 #undef  Memerrs
 #define Memerrs evalstat
-    instream = sp;
+    atl__env->inputBuffer = sp;
     evalstat = ATL_SNORM;	      // Set normal evaluation status
 
 #ifdef BREAK
@@ -3962,7 +3990,7 @@ int atl_eval(char *sp) {
     }
 #endif // PROLOGUE
 
-    while ((evalstat == ATL_SNORM) && (i = atl__token(&instream)) != TokNull) {
+    while ((evalstat == ATL_SNORM) && (i = atl__token(&(atl__env->inputBuffer))) != TokNull) {
         dictword *di;
 
         switch (i) {
@@ -4199,6 +4227,8 @@ static void CatchCtrlC(int sig) {
 //=======================================================================
 //
 int main(int argc, const char *argv[]) {
+    atl__env = atl__NewInterpreter();
+
     int   idx;
     int   fname = FALSE, defmode = FALSE;
     FILE *fpInput = stdin;
