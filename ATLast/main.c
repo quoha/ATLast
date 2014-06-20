@@ -163,7 +163,6 @@ extern atl_int atl_ntempstr;      // Number of temporary string buffers
 extern atl_int atl_trace;	      // Trace mode
 extern atl_int atl_walkback;      // Error walkback enabled mode
 extern atl_int atl_comment;	      // Currently ignoring comment
-extern atl_int atl_redef;	      // Allow redefinition of words without issuing the "not unique" warning.
 
 //  ATL_EVAL return status codes
 
@@ -461,7 +460,6 @@ struct atlenv {
     atl_int enableWalkback;             // Walkback enabled if true
     atl_int isIgnoringComment;          // Currently ignoring a comment
     atl_int allowRedefinition;          // Allow redefinition without issuing the "not unique" message.
-    //atl_int atl_redef = Truth;          /* Allow redefinition without issuing the "not unique" message. */
     atl_int lineNumberLastLoadFailed;   // Line where last atl_load failed or zero if no error
 
     // private
@@ -619,7 +617,6 @@ atl_int atl_ntempstr = 4;	      /* Number of temporary string buffers */
 atl_int atl_trace = Falsity;        /* Tracing if true */
 atl_int atl_walkback = Truth;       /* Walkback enabled if true */
 atl_int atl_comment = Falsity;      /* Currently ignoring a comment */
-atl_int atl_redef = Truth;          /* Allow redefinition without issuing the "not unique" message. */
 
 /*  Local variables  */
 
@@ -4106,7 +4103,7 @@ int atl_eval(char *sp) {
                     // it on the return stack.
                     defpend = atlFalse;
                     ucase(tokbuf);
-                    if (atl_redef && (lookup(tokbuf) != NULL)) {
+                    if (atl__env->allowRedefinition && (lookup(tokbuf) != NULL)) {
                         fprintf(stderr, "\n%s isn't unique.", tokbuf);
                     }
                     enter(tokbuf);
