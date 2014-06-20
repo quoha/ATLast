@@ -164,7 +164,6 @@ extern atl_int atl_trace;	      // Trace mode
 extern atl_int atl_walkback;      // Error walkback enabled mode
 extern atl_int atl_comment;	      // Currently ignoring comment
 extern atl_int atl_redef;	      // Allow redefinition of words without issuing the "not unique" warning.
-extern atl_int atl_errline;	      // Line number where last atl_load() errored or zero if no error.
 
 //  ATL_EVAL return status codes
 
@@ -442,6 +441,15 @@ pragma On(PCC_msgs);		      /* High C compiler is brain-dead */
 
 typedef struct atlenv atlenv;
 struct atlenv {
+    //atl_int atl_stklen = 100;	      /* Evaluation stack length */
+    //atl_int atl_rstklen = 100;	      /* Return stack length */
+    //atl_int atl_heaplen = 1000;	      /* Heap length */
+    //atl_int atl_ltempstr = 256;	      /* Temporary string buffer length */
+    //atl_int atl_ntempstr = 4;	      /* Number of temporary string buffers */
+    //atl_int atl_trace = Falsity;        /* Tracing if true */
+    //atl_int atl_walkback = Truth;       /* Walkback enabled if true */
+    //atl_int atl_comment = Falsity;      /* Currently ignoring a comment */
+
     // public -- visible to calling programs
     atl_int stkLength;                  // Evaluation stack length
     atl_int rsLength;                   // Return stack length
@@ -453,7 +461,8 @@ struct atlenv {
     atl_int enableWalkback;             // Walkback enabled if true
     atl_int isIgnoringComment;          // Currently ignoring a comment
     atl_int allowRedefinition;          // Allow redefinition without issuing the "not unique" message.
-    atl_int lineNumberLastLoadFailed;   // Line where last atl_load failed
+    //atl_int atl_redef = Truth;          /* Allow redefinition without issuing the "not unique" message. */
+    atl_int lineNumberLastLoadFailed;   // Line where last atl_load failed or zero if no error
 
     // private
     char *inputBuffer;          // current input buffer
@@ -610,9 +619,7 @@ atl_int atl_ntempstr = 4;	      /* Number of temporary string buffers */
 atl_int atl_trace = Falsity;        /* Tracing if true */
 atl_int atl_walkback = Truth;       /* Walkback enabled if true */
 atl_int atl_comment = Falsity;      /* Currently ignoring a comment */
-atl_int atl_redef = Truth;          /* Allow redefinition without issuing
-                                     the "not unique" message. */
-atl_int atl_errline = 0;            /* Line where last atl_load failed */
+atl_int atl_redef = Truth;          /* Allow redefinition without issuing the "not unique" message. */
 
 /*  Local variables  */
 
@@ -3924,13 +3931,13 @@ int atl_load(FILE *fp) {
     char *sinstr = atl__env->inputBuffer;   // stack input stream
     int lineno = 0;		      /* Current line number */
 
-    atl_errline = 0;		      /* Reset line number of error */
+    atl__env->lineNumberLastLoadFailed = 0; // reset line number of error
     atl_mark(&mk);
     ip = NULL;			      /* Fool atl_eval into interp state */
     while (atl_fgetsp(s, 132, fp) != NULL) {
         lineno++;
         if ((es = atl_eval(s)) != ATL_SNORM) {
-            atl_errline = lineno;     /* Save line number of error */
+            atl__env->lineNumberLastLoadFailed = lineno; // save line number of error
             atl_unwind(&mk);
             break;
         }
