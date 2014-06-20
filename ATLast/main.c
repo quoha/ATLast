@@ -157,7 +157,6 @@ int atl__token(char **cp);
 
 extern atl_int atl_stklen;	      // Initial/current stack length
 extern atl_int atl_rstklen;	      // Initial/current return stack length
-extern atl_int atl_heaplen;	      // Initial/current heap length
 
 //  ATL_EVAL return status codes
 
@@ -236,8 +235,8 @@ void atl_unwind(atl_statemark *mp);
 #           define rstackmax   atl__rx
 #           define heapmax     atl__hx
 #       endif // NOMANGLE
-extern stackitem *stackmax, *heapmax;
-extern dictword ***rstackmax;
+stackitem *stackmax, *heapmax;
+dictword ***rstackmax;
 #   endif
 
 #   ifdef ALIGNMENT
@@ -246,7 +245,7 @@ extern dictword ***rstackmax;
 #           define rbuf1	    atl__r1
 #           define rbuf2	    atl__r2
 #       endif // NOMANGLE
-extern atl_real rbuf0, rbuf1, rbuf2;  // Real temporaries for alignment
+atl_real rbuf0, rbuf1, rbuf2;  // Real temporaries for alignment
 #   endif
 
 #   define FmodeR       1   // Read mode
@@ -437,7 +436,6 @@ typedef struct atlenv atlenv;
 struct atlenv {
     //atl_int atl_stklen = 100;	      /* Evaluation stack length */
     //atl_int atl_rstklen = 100;	      /* Return stack length */
-    //atl_int atl_heaplen = 1000;	      /* Heap length */
 
     // public -- visible to calling programs
     atl_int stkLength;                  // Evaluation stack length
@@ -600,7 +598,6 @@ typedef enum {atlFalse = 0, atlTrue = 1} Boolean;
 
 atl_int atl_stklen = 100;	      /* Evaluation stack length */
 atl_int atl_rstklen = 100;	      /* Return stack length */
-atl_int atl_heaplen = 1000;	      /* Heap length */
 
 /*  Local variables  */
 
@@ -989,27 +986,25 @@ Exported char *atl_fgetsp(char *s, int n, FILE *stream) {
 
 #ifdef MEMSTAT
 void atl_memstat(void) {
-    static char fmt[] = "   %-12s %6ld    %6ld    %6ld       %3ld\n";
+    fprintf(stderr, "\n             Memory Usage Summary\n\n");
+    fprintf(stderr, "                 Current   Maximum    Items     Percent\n");
+    fprintf(stderr, "  Memory Area     usage     used    allocated   in use \n");
 
-    V printf("\n             Memory Usage Summary\n\n");
-    V printf("                 Current   Maximum    Items     Percent\n");
-    V printf("  Memory Area     usage     used    allocated   in use \n");
-
-    V printf(fmt, "Stack",
-             ((long) (stk - stack)),
-             ((long) (stackmax - stack)),
-             atl_stklen,
-             (100L * (stk - stack)) / atl_stklen);
-    V printf(fmt, "Return stack",
-             ((long) (rstk - rstack)),
-             ((long) (rstackmax - rstack)),
-             atl_rstklen,
-             (100L * (rstk - rstack)) / atl_rstklen);
-    V printf(fmt, "Heap",
-             ((long) (hptr - heap)),
-             ((long) (heapmax - heap)),
-             atl_heaplen,
-             (100L * (hptr - heap)) / atl_heaplen);
+    fprintf(stderr, "   %-12s %6ld    %6ld    %6ld       %3ld\n", "Stack",
+            ((long) (stk - stack)),
+            ((long) (stackmax - stack)),
+            atl_stklen,
+            (100L * (stk - stack)) / atl_stklen);
+    fprintf(stderr, "   %-12s %6ld    %6ld    %6ld       %3ld\n", "Return stack",
+            ((long) (rstk - rstack)),
+            ((long) (rstackmax - rstack)),
+            atl_rstklen,
+            (100L * (rstk - rstack)) / atl_rstklen);
+    fprintf(stderr, "   %-12s %6ld    %6ld    %6ld       %3ld\n", "Heap",
+            ((long) (hptr - heap)),
+            ((long) (heapmax - heap)),
+            atl__env->heapLength,
+            (100L * (hptr - heap)) / atl__env->heapLength);
 }
 #endif /* MEMSTAT */
 
@@ -1971,27 +1966,15 @@ prim P_type(void) {
     Pop;
 }
 
-/* List words */
+// words -- list words
+//
 prim P_words(void) {
-#ifndef Keyhit
-    int key = 0;
-#endif
     dictword *dw = dict;
 
     while (dw != NULL) {
 
         fprintf(stderr, "\n%s", dw->wname + 1);
         dw = dw->wnext;
-#ifdef Keyhit
-        if (kbquit()) {
-            break;
-        }
-#else
-        /* If this system can't trap keystrokes, just stop the WORDS
-         listing after 20 words. */
-        if (++key >= 20)
-            break;
-#endif
     }
     fprintf(stderr, "\n");
 }
@@ -3708,7 +3691,7 @@ void atl_init(void) {
             /* Force length of temporary strings to even number of
              stackitems. */
             atl__env->lengthTempStringBuffer += sizeof(stackitem) - (atl__env->lengthTempStringBuffer % sizeof(stackitem));
-            cp = alloc((((unsigned int) atl_heaplen) * sizeof(stackitem)) + ((unsigned int) (atl__env->numberOfTempStringBuffers * atl__env->lengthTempStringBuffer)));
+            cp = alloc((((unsigned int) atl__env->heapLength) * sizeof(stackitem)) + ((unsigned int) (atl__env->numberOfTempStringBuffers * atl__env->lengthTempStringBuffer)));
             heapbot = (stackitem *) cp;
             strbuf = (char **) alloc(((unsigned int) atl__env->numberOfTempStringBuffers) *
                                      sizeof(char *));
@@ -3729,7 +3712,7 @@ void atl_init(void) {
 #ifdef MEMSTAT
         heapmax = hptr;
 #endif
-        heaptop = heap + atl_heaplen;
+        heaptop = heap + atl__env->heapLength;
 
         /* Now that dynamic memory is up and running, allocate constants
          and variables built into the system.  */
@@ -3949,9 +3932,9 @@ int atl_prologue(char *sp) {
         const char *proName = "STACK ";
         if (strncmp(vp, proName, strlen(proName)) == 0) {
             if ((ap = strchr(vp, ' ')) != NULL) {
-                sscanf(ap + 1, "%li", &atl__env->numberOfTempStringBuffers);
+                sscanf(ap + 1, "%li", &atl__env->stkLength);
 #ifdef PROLOGUEDEBUG
-                fprintf(stderr, "prologue set %sto %ld\n", proName, &atl_stklen);
+                fprintf(stderr, "prologue set %sto %ld\n", proName, atl__env->stkLength);
 #endif
                 return 1;
             }
@@ -3959,9 +3942,9 @@ int atl_prologue(char *sp) {
         proName = "RSTACK ";
         if (strncmp(vp, proName, strlen(proName)) == 0) {
             if ((ap = strchr(vp, ' ')) != NULL) {
-                sscanf(ap + 1, "%li", &atl__env->numberOfTempStringBuffers);
+                sscanf(ap + 1, "%li", &atl__env->rsLength);
 #ifdef PROLOGUEDEBUG
-                fprintf(stderr, "prologue set %sto %ld\n", proName, &atl_rstklen);
+                fprintf(stderr, "prologue set %sto %ld\n", proName, atl__env->rsLength);
 #endif
                 return 1;
             }
@@ -3969,9 +3952,9 @@ int atl_prologue(char *sp) {
         proName = "HEAP ";
         if (strncmp(vp, proName, strlen(proName)) == 0) {
             if ((ap = strchr(vp, ' ')) != NULL) {
-                sscanf(ap + 1, "%li", &atl__env->numberOfTempStringBuffers);
+                sscanf(ap + 1, "%li", &atl__env->heapLength);
 #ifdef PROLOGUEDEBUG
-                fprintf(stderr, "prologue set %sto %ld\n", proName, &atl_heaplen);
+                fprintf(stderr, "prologue set %sto %ld\n", proName, atl__env->heapLength);
 #endif
                 return 1;
             }
@@ -4276,38 +4259,25 @@ int main(int argc, const char *argv[]) {
             switch (opt) {
                 case 'd':
                     defmode = TRUE;
+                    argv[idx] = 0;
                     break;
                 case 'h':
-                    atl_heaplen = atol(cp + 1);
+                    atl__env->heapLength = atol(cp + 1);
+                    argv[idx] = 0;
                     break;
                 case 'i':
-                    // load each include as passed in
-                    //
-                    strncpy(fileNameInclude, cp, MAX_FNAME_LENGTH - 5);
-                    if (strchr(fileNameInclude, '.') == NULL) {
-                        strcat(fileNameInclude, ".atl");
-                    }
-                    fpInclude = fopen(fileNameInclude, OUR_READ_MODE);
-                    if (!fpInclude) {
-                        perror(fileNameInclude);
-                        fprintf(stderr, "error:\ttnable to open include file %s\n", fileNameInclude);
-                        return 1;
-                    }
-                    statusInclude = atl_load(fpInclude);
-                    fclose(fpInclude);
-                    if (statusInclude != ATL_SNORM) {
-                        fprintf(stderr, "\nerror:\t%d in include file %s\n", statusInclude, fileNameInclude);
-                        return 1;
-                    }
                     break;
                 case 'r':
                     atl_rstklen = atol(cp + 1);
+                    argv[idx] = 0;
                     break;
                 case 's':
                     atl_stklen = atol(cp + 1);
+                    argv[idx] = 0;
                     break;
                 case 't':
                     atl__env->enableTrace = Truth;
+                    argv[idx] = 0;
                     break;
                 case '?':
                 case 'u':
@@ -4342,6 +4312,46 @@ int main(int argc, const char *argv[]) {
         }
     }
 
+    // initialize the interpreter?
+    //
+    atl_init();
+
+    for (idx = 1; idx < argc; idx++) {
+        if (!argv[idx]) {
+            continue;
+        }
+        const char *cp = argv[idx];
+
+        if (*cp == '-') {
+            const char opt = *(++cp);
+            switch (opt) {
+                case 'i':
+                    // load each include as passed in
+                    //
+                    strncpy(fileNameInclude, cp, MAX_FNAME_LENGTH - 5);
+                    if (strchr(fileNameInclude, '.') == NULL) {
+                        strcat(fileNameInclude, ".atl");
+                    }
+                    fpInclude = fopen(fileNameInclude, OUR_READ_MODE);
+                    if (!fpInclude) {
+                        perror(fileNameInclude);
+                        fprintf(stderr, "error:\ttnable to open include file %s\n", fileNameInclude);
+                        return 1;
+                    }
+                    statusInclude = atl_load(fpInclude);
+                    fclose(fpInclude);
+                    if (statusInclude != ATL_SNORM) {
+                        fprintf(stderr, "\nerror:\t%d in include file %s\n", statusInclude, fileNameInclude);
+                        return 1;
+                    }
+                    break;
+            }
+        } else {
+            fprintf(stderr, "error:\tunknown option '%s'\n", argv[idx]);
+            return 1;
+        }
+    }
+
     // Now that all the preliminaries are out of the way, fall into the main ATLAST execution loop.
 
 #ifndef HIGHC
@@ -4368,6 +4378,7 @@ int main(int argc, const char *argv[]) {
     if (!fname) {
         fprintf(stderr, "\n");
     }
+    atl_memstat();
 
     return 0;
 }
