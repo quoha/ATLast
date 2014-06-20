@@ -231,10 +231,8 @@ void atl_unwind(atl_statemark *mp);
 #   ifdef MEMSTAT
 #       ifndef NOMANGLE
 #           define stackmax    atl__sx
-#           define rstackmax   atl__rx
 #       endif // NOMANGLE
 stackitem *stackmax;
-dictword ***rstackmax;
 #   endif
 
 #   ifdef ALIGNMENT
@@ -345,7 +343,7 @@ pragma On(PCC_msgs);		      /* High C compiler is brain-dead */
 
 #ifdef MEMSTAT
 #define Mss(n) if ((stk+(n))>stackmax) stackmax = stk+(n);
-#define Msr(n) if ((rstk+(n))>rstackmax) rstackmax = rstk+(n);
+#define Msr(n) if ((rstk+(n))>atl__env->rstackmax) atl__env->rstackmax = rstk+(n);
 #define Msh(n) if ((hptr+(n))>atl__env->heapmax) atl__env->heapmax = hptr+(n);
 #else
 #define Mss(n)
@@ -466,6 +464,8 @@ atlenv *atl__NewInterpreter(void) {
     e->nextToken   = atl__token;
     e->heapmax     = 0;
     e->inputBuffer = 0;
+    e->rstackmax   = 0;
+    e->stackmax    = 0;
 
     // assign default public values
     e->allowRedefinition            = Truth;
@@ -639,7 +639,6 @@ static dictword **wbptr;            /* Walkback trace pointer */
 
 #ifdef MEMSTAT
 Exported stackitem *stackmax;	      /* Stack maximum excursion */
-Exported dictword ***rstackmax;       /* Return stack maximum excursion */
 #endif
 
 #ifdef FILEIO
@@ -995,7 +994,7 @@ void atl_memstat(void) {
             (100L * (stk - stack)) / atl__env->stkLength);
     fprintf(stderr, "   %-12s %6ld    %6ld    %6ld       %3ld\n", "Return stack",
             ((long) (rstk - rstack)),
-            ((long) (rstackmax - rstack)),
+            ((long) (atl__env->rstackmax - rstack)),
             atl__env->rsLength,
             (100L * (rstk - rstack)) / atl__env->rsLength);
     fprintf(stderr, "   %-12s %6ld    %6ld    %6ld       %3ld\n", "Heap",
@@ -3664,7 +3663,7 @@ void atl_init(void) {
         }
         rstk = rstackbot = rstack;
 #ifdef MEMSTAT
-        rstackmax = rstack;
+        atl__env->rstackmax = rstack;
 #endif
         rstacktop = rstack + atl__env->rsLength;
 #ifdef WALKBACK
