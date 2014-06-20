@@ -206,32 +206,7 @@ void atl_unwind(atl_statemark *mp);
 
 #ifdef EXPORT
 #   define Exported
-#   ifndef NOMANGLE
-#       define stk          atl__sp
-#       define stack	    atl__sk
-#       define stackbot     atl__sb
-#       define stacktop     atl__st
-#       define rstk         atl__rp
-#       define rstack	    atl__rk
-#       define rstackbot    atl__rb
-#       define rstacktop    atl__rt
-#       define heap         atl__hb
-#       define hptr         atl__hp
-#       define heapbot      atl__hs
-#       define heaptop      atl__ht
-#       define dict         atl__dh
-#       define dictprot     atl__dp
-#       define ip           atl__ip
-#       define curword      atl__cw
-#       define createword   atl__wd
-#   endif // NOMANGLE
-
 #   ifdef ALIGNMENT
-#       ifndef NOMANGLE
-#           define rbuf0	    atl__r0
-#           define rbuf1	    atl__r1
-#           define rbuf2	    atl__r2
-#       endif // NOMANGLE
 // TODO: move these to the altenv structure
 atl_real rbuf0, rbuf1, rbuf2;  // Real temporaries for alignment
 #   endif
@@ -247,28 +222,11 @@ dictword ***rstack, ***rstk, ***rstackbot, ***rstacktop;
 dictword *dict, *dictprot, *curword, *createword;
 dictword **ip;
 
-#   ifndef NOMANGLE
-#       define P_create    atl__Pcr
-#       define P_dodoes    atl__Pds
-#   endif // NOMANGLE
 void P_create(void);
 void P_dodoes(void);
 #else  // EXPORT
 #   define Exported static
 #endif // EXPORT
-
-#ifndef NOMEMCHECK
-#   ifdef EXPORT
-#       ifndef NOMANGLE
-#           define stakover    atl__Eso
-#           define rstakover   atl__Erso
-#           define heapover    atl__Eho
-#           define badpointer  atl__Ebp
-#           define stakunder   atl__Esu
-#           define rstakunder  atl__Ersu
-#       endif // NOMANGLE
-#   endif
-#endif
 
 void stakover(void);
 void rstakover(void);
