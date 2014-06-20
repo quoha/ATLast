@@ -158,7 +158,6 @@ int atl__token(char **cp);
 extern atl_int atl_stklen;	      // Initial/current stack length
 extern atl_int atl_rstklen;	      // Initial/current return stack length
 extern atl_int atl_heaplen;	      // Initial/current heap length
-extern atl_int atl_ltempstr;      // Temporary string buffer length
 
 //  ATL_EVAL return status codes
 
@@ -439,7 +438,6 @@ struct atlenv {
     //atl_int atl_stklen = 100;	      /* Evaluation stack length */
     //atl_int atl_rstklen = 100;	      /* Return stack length */
     //atl_int atl_heaplen = 1000;	      /* Heap length */
-    //atl_int atl_ltempstr = 256;	      /* Temporary string buffer length */
 
     // public -- visible to calling programs
     atl_int stkLength;                  // Evaluation stack length
@@ -603,7 +601,6 @@ typedef enum {atlFalse = 0, atlTrue = 1} Boolean;
 atl_int atl_stklen = 100;	      /* Evaluation stack length */
 atl_int atl_rstklen = 100;	      /* Return stack length */
 atl_int atl_heaplen = 1000;	      /* Heap length */
-atl_int atl_ltempstr = 256;	      /* Temporary string buffer length */
 
 /*  Local variables  */
 
@@ -3710,16 +3707,14 @@ void atl_init(void) {
 
             /* Force length of temporary strings to even number of
              stackitems. */
-            atl_ltempstr += sizeof(stackitem) -
-            (atl_ltempstr % sizeof(stackitem));
-            cp = alloc((((unsigned int) atl_heaplen) * sizeof(stackitem)) +
-                       ((unsigned int) (atl__env->numberOfTempStringBuffers * atl_ltempstr)));
+            atl__env->lengthTempStringBuffer += sizeof(stackitem) - (atl__env->lengthTempStringBuffer % sizeof(stackitem));
+            cp = alloc((((unsigned int) atl_heaplen) * sizeof(stackitem)) + ((unsigned int) (atl__env->numberOfTempStringBuffers * atl__env->lengthTempStringBuffer)));
             heapbot = (stackitem *) cp;
             strbuf = (char **) alloc(((unsigned int) atl__env->numberOfTempStringBuffers) *
                                      sizeof(char *));
             for (i = 0; i < atl__env->numberOfTempStringBuffers; i++) {
                 strbuf[i] = cp;
-                cp += ((unsigned int) atl_ltempstr);
+                cp += ((unsigned int) atl__env->lengthTempStringBuffer);
             }
             cstrbuf = 0;
             heap = (stackitem *) cp;  /* Allocatable heap starts after
@@ -3946,40 +3941,49 @@ int atl_load(FILE *fp) {
 // Returns 1 if the statement was part of the prologue and 0 otherwise.
 //
 int atl_prologue(char *sp) {
-    static struct {
-        char *pname;
-        atl_int *pparam;
-    } proname[] = {
-        {"STACK "   , &atl_stklen},
-        {"RSTACK "  , &atl_rstklen},
-        {"HEAP "    , &atl_heaplen},
-        {"TEMPSTRL ", &atl_ltempstr},
-    };
-
     if (strncmp(sp, "\\ *", 3) == 0) {
-        int i;
-        char *vp = sp + 3, *ap;
+        char *ap;
+        char *vp = sp + 3;
 
         ucase(vp);
-        const char *proName = "TEMPSTRN ";
-        if (strncmp(sp+3, proName, strlen(proName)) == 0) {
-            if ((ap = strchr(sp + 3, ' ')) != NULL) {
+        const char *proName = "STACK ";
+        if (strncmp(vp, proName, strlen(proName)) == 0) {
+            if ((ap = strchr(vp, ' ')) != NULL) {
+                sscanf(ap + 1, "%li", &atl__env->numberOfTempStringBuffers);
+#ifdef PROLOGUEDEBUG
+                fprintf(stderr, "prologue set %sto %ld\n", proName, &atl_stklen);
+#endif
+                return 1;
+            }
+        }
+        proName = "RSTACK ";
+        if (strncmp(vp, proName, strlen(proName)) == 0) {
+            if ((ap = strchr(vp, ' ')) != NULL) {
+                sscanf(ap + 1, "%li", &atl__env->numberOfTempStringBuffers);
+#ifdef PROLOGUEDEBUG
+                fprintf(stderr, "prologue set %sto %ld\n", proName, &atl_rstklen);
+#endif
+                return 1;
+            }
+        }
+        proName = "HEAP ";
+        if (strncmp(vp, proName, strlen(proName)) == 0) {
+            if ((ap = strchr(vp, ' ')) != NULL) {
+                sscanf(ap + 1, "%li", &atl__env->numberOfTempStringBuffers);
+#ifdef PROLOGUEDEBUG
+                fprintf(stderr, "prologue set %sto %ld\n", proName, &atl_heaplen);
+#endif
+                return 1;
+            }
+        }
+        proName = "TEMPSTRN ";
+        if (strncmp(vp, proName, strlen(proName)) == 0) {
+            if ((ap = strchr(vp, ' ')) != NULL) {
                 sscanf(ap + 1, "%li", &atl__env->numberOfTempStringBuffers);
 #ifdef PROLOGUEDEBUG
                 fprintf(stderr, "prologue set %sto %ld\n", proName, atl__env->numberOfTempStringBuffers);
 #endif
                 return 1;
-            }
-        }
-        for (i = 0; i < ELEMENTS(proname); i++) {
-            if (strncmp(sp + 3, proname[i].pname, strlen(proname[i].pname)) == 0) {
-                if ((ap = strchr(sp + 3, ' ')) != NULL) {
-                    sscanf(ap + 1, "%li", proname[i].pparam);
-#ifdef PROLOGUEDEBUG
-                    fprintf(stderr, "prologue set %sto %ld\n", proname[i].pname, *proname[i].pparam);
-#endif
-                    return 1;
-                }
             }
         }
     }
