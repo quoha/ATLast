@@ -4184,10 +4184,6 @@ int main(int argc, const char *argv[]) {
 
 #define MAX_FNAME_LENGTH 1024
 
-    int   statusInclude;
-    char  fileNameInclude[MAX_FNAME_LENGTH];
-    FILE *fpInclude;
-
     fprintf(stderr, "ATLast 1.2a (2014/06/19)\n");
     for (idx = 1; idx < argc; idx++) {
         const char *cp = argv[idx];
@@ -4258,31 +4254,26 @@ int main(int argc, const char *argv[]) {
         if (!argv[idx]) {
             continue;
         }
-        const char *cp = argv[idx];
+        if (strncmp(argv[idx], "-i", 2) == 0) {
+            // load each include as passed in
+            //
+            char fileNameInclude[MAX_FNAME_LENGTH];
 
-        if (*cp == '-') {
-            const char opt = *(++cp);
-            switch (opt) {
-                case 'i':
-                    // load each include as passed in
-                    //
-                    strncpy(fileNameInclude, cp, MAX_FNAME_LENGTH - 5);
-                    if (strchr(fileNameInclude, '.') == NULL) {
-                        strcat(fileNameInclude, ".atl");
-                    }
-                    fpInclude = fopen(fileNameInclude, OUR_READ_MODE);
-                    if (!fpInclude) {
-                        perror(fileNameInclude);
-                        fprintf(stderr, "error:\ttnable to open include file %s\n", fileNameInclude);
-                        return 1;
-                    }
-                    statusInclude = atl_load(fpInclude);
-                    fclose(fpInclude);
-                    if (statusInclude != ATL_SNORM) {
-                        fprintf(stderr, "\nerror:\t%d in include file %s\n", statusInclude, fileNameInclude);
-                        return 1;
-                    }
-                    break;
+            strncpy(fileNameInclude, argv[idx] + 2, MAX_FNAME_LENGTH - 5);
+            if (strchr(fileNameInclude, '.') == NULL) {
+                strcat(fileNameInclude, ".atl");
+            }
+            FILE *fpInclude = fopen(fileNameInclude, OUR_READ_MODE);
+            if (!fpInclude) {
+                perror(fileNameInclude);
+                fprintf(stderr, "error:\ttnable to open include file %s\n", fileNameInclude);
+                return 1;
+            }
+            int statusInclude = atl_load(fpInclude);
+            fclose(fpInclude);
+            if (statusInclude != ATL_SNORM) {
+                fprintf(stderr, "\nerror:\t%d in include file %s\n", statusInclude, fileNameInclude);
+                return 1;
             }
         } else {
             fprintf(stderr, "error:\tunknown option '%s'\n", argv[idx]);
