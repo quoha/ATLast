@@ -218,7 +218,7 @@ atl_real rbuf0, rbuf1, rbuf2;  // Real temporaries for alignment
 #   define FmodeCre     8   // Create new file
 
 // TODO: move these to the altenv structure
-stackitem *stack, *stk, *heap, *hptr, *heapbot, *heaptop;
+stackitem *stack, *stk;
 dictword ***rstack, ***rstk, ***rstackbot, ***rstacktop;
 dictword *dict, *dictprot, *curword, *createword;
 dictword **ip;
@@ -283,7 +283,7 @@ void rstakunder(void);
 #ifdef MEMSTAT
 #define Mss(n) if ((stk+(n))>atl__env->stkMaxExtent) atl__env->stkMaxExtent = stk+(n);
 #define Msr(n) if ((rstk+(n))>atl__env->rsMaxExtent) atl__env->rsMaxExtent = rstk+(n);
-#define Msh(n) if ((hptr+(n))>atl__env->heapMaxExtent) atl__env->heapMaxExtent = hptr+(n);
+#define Msh(n) if ((atl__env->heapAllocPtr+(n))>atl__env->heapMaxExtent) atl__env->heapMaxExtent = atl__env->heapAllocPtr+(n);
 #else
 #define Mss(n)
 #define Msr(n)
@@ -291,12 +291,12 @@ void rstakunder(void);
 #endif
 
 #ifdef NOMEMCHECK
-#define Sl(x)
-#define So(n)
+#   define Sl(x)
+#   define So(n)
 #else
-#define Memerrs
-#define Sl(x) if ((stk-stack)<(x)) {stakunder(); return Memerrs;}
-#define So(n) Mss(n) if ((stk+(n))>atl__env->stkTop) {stakover(); return Memerrs;}
+#   define Memerrs
+#   define Sl(x) if ((stk-stack)<(x)) {stakunder(); return Memerrs;}
+#   define So(n) Mss(n) if ((stk+(n))>atl__env->stkTop) {stakover(); return Memerrs;}
 #endif
 
 /*  Return stack access definitions  */
@@ -307,24 +307,24 @@ void rstakunder(void);
 #define Rpop rstk--		      /* Pop return stack */
 #define Rpush *rstk++		      /* Push return stack */
 #ifdef NOMEMCHECK
-#define Rsl(x)
-#define Rso(n)
+#   define Rsl(x)
+#   define Rso(n)
 #else
-#define Rsl(x) if ((rstk-rstack)<(x)) {rstakunder(); return Memerrs;}
-#define Rso(n) Msr(n) if ((rstk+(n))>rstacktop){rstakover(); return Memerrs;}
+#   define Rsl(x) if ((rstk-rstack)<(x)) {rstakunder(); return Memerrs;}
+#   define Rso(n) Msr(n) if ((rstk+(n))>rstacktop){rstakover(); return Memerrs;}
 #endif
 
 /*  Heap access definitions  */
 
 #ifdef NOMEMCHECK
-#define Ho(n)
-#define Hpc(n)
+#   define Ho(n)
+#   define Hpc(n)
 #else
-#define Ho(n)  Msh(n) if ((hptr+(n))>heaptop){heapover(); return Memerrs;}
-#define Hpc(n) if ((((stackitem *)(n))<heapbot)||(((stackitem *)(n))>=heaptop)){badpointer(); return Memerrs;}
+#   define Ho(n)  Msh(n) if ((atl__env->heapAllocPtr+(n))>atl__env->heapTop){heapover(); return Memerrs;}
+#   define Hpc(n) if ((((stackitem *)(n))<atl__env->heapBottom)||(((stackitem *)(n))>=atl__env->heapTop)){badpointer(); return Memerrs;}
 #endif
-#define Hstore *hptr++		      /* Store item on heap */
-#define state  (*heap)		      /* Execution state is first heap word */
+#define Hstore *atl__env->heapAllocPtr++		      /* Store item on heap */
+#define state  (*atl__env->heap)		      /* Execution state is first heap word */
 
 #define prim static void	      /* Attributes of primitive functions */
 
@@ -383,7 +383,11 @@ struct atlenv {
     atl_int lineNumberLastLoadFailed;   // Line where last atl_load failed or zero if no error
 
     // private
+    stackitem  *heap;                   // allocation heap
+    stackitem  *heapAllocPtr;           // heap allocation pointer
+    stackitem  *heapBottom;             // bottom of heap (temp string buffer)
     stackitem  *heapMaxExtent;          // heap maximum excursion
+    stackitem  *heapTop;                // top of heap
     int         idxCurrTempStringBuffer;// index into current temp string buffer
     char       *inputBuffer;            // current input buffer
     int       (*nextToken)(char **cp);
@@ -394,6 +398,10 @@ struct atlenv {
 
     // TODO: rename these
     char      **strbuf;                 // table of pointers to temp strings
+
+    /* The heap */
+
+    // TODO: move these
 
 
 
@@ -412,7 +420,11 @@ atlenv *atl__NewInterpreter(void) {
         return e;
     }
     e->nextToken        = atl__token;
+    e->heap             = 0;
+    e->heapBottom          = 0;
+    e->heapTop          = 0;
     e->heapMaxExtent    = 0;
+    e->heapAllocPtr             = 0;
     e->idxCurrTempStringBuffer = 0;
     e->inputBuffer      = 0;
     e->rsMaxExtent      = 0;
@@ -560,14 +572,6 @@ Exported dictword ***rstack = NULL; /* Return stack */
 Exported dictword ***rstk;          /* Return stack pointer */
 Exported dictword ***rstackbot;     /* Return stack bottom */
 Exported dictword ***rstacktop;     /* Return stack top */
-
-/* The heap */
-
-// TODO: move these
-Exported stackitem *heap = NULL;    /* Allocation heap */
-Exported stackitem *hptr;           /* Heap allocation pointer */
-Exported stackitem *heapbot;	    /* Bottom of heap (temp string buffer) */
-Exported stackitem *heaptop;	    /* Top of heap */
 
 /* The dictionary */
 
@@ -946,10 +950,10 @@ void atl_memstat(void) {
             atl__env->rsLength,
             (100L * (rstk - rstack)) / atl__env->rsLength);
     fprintf(stderr, "   %-12s %6ld    %6ld    %6ld       %3ld\n", "Heap",
-            ((long) (hptr - heap)),
-            ((long) (atl__env->heapMaxExtent - heap)),
+            ((long) (atl__env->heapAllocPtr - atl__env->heap)),
+            ((long) (atl__env->heapMaxExtent - atl__env->heap)),
             atl__env->heapLength,
-            (100L * (hptr - heap)) / atl__env->heapLength);
+            (100L * (atl__env->heapAllocPtr - atl__env->heap)) / atl__env->heapLength);
 }
 #endif /* MEMSTAT */
 
@@ -1238,7 +1242,7 @@ prim P_0lss(void) {
 /* Push current heap address */
 prim P_here(void) {
     So(1);
-    Push = (stackitem) hptr;
+    Push = (stackitem) atl__env->heapAllocPtr;
 }
 
 /* Store value into address */
@@ -1272,7 +1276,7 @@ prim P_allot(void) {
     n = (S0 + (sizeof(stackitem) - 1)) / sizeof(stackitem);
     Pop;
     Ho(n);
-    hptr += n;
+    atl__env->heapAllocPtr += n;
 }
 
 /* Store one item on heap */
@@ -1304,21 +1308,21 @@ prim P_ccomma(void) {
 
     Sl(1);
     Ho(1);
-    chp = ((unsigned char *) hptr);
+    chp = ((unsigned char *) atl__env->heapAllocPtr);
     *chp++ = S0;
-    hptr = (stackitem *) chp;
+    atl__env->heapAllocPtr = (stackitem *) chp;
     Pop;
 }
 
 /* Align heap pointer after storing a series of bytes. */
 prim P_cequal(void) {
-    stackitem n = (((stackitem) hptr) - ((stackitem) heap)) % (sizeof(stackitem));
+    stackitem n = (((stackitem) atl__env->heapAllocPtr) - ((stackitem) atl__env->heap)) % (sizeof(stackitem));
 
     if (n != 0) {
-        char *chp = ((char *) hptr);
+        char *chp = ((char *) atl__env->heapAllocPtr);
 
         chp += sizeof(stackitem) - n;
-        hptr = ((stackitem *) chp);
+        atl__env->heapAllocPtr = ((stackitem *) chp);
     }
 }
 
@@ -1333,10 +1337,10 @@ prim P_var(void) {
 Exported void P_create(void) {	      /* Create new word */
     defpend = atlTrue;		      /* Set definition pending */
     Ho(Dictwordl);
-    createword = (dictword *) hptr;   /* Develop address of word */
+    createword = (dictword *) atl__env->heapAllocPtr;   /* Develop address of word */
     createword->wname = NULL;	      /* Clear pointer to name string */
     createword->wcode = P_var;	      /* Store default code */
-    hptr += Dictwordl;		      /* Allocate heap space for word */
+    atl__env->heapAllocPtr += Dictwordl;		      /* Allocate heap space for word */
 }
 
 /* Forget word */
@@ -1472,7 +1476,7 @@ prim P_string(void) {
     Ho((S0 + 1 + sizeof(stackitem)) / sizeof(stackitem));
     P_create(); 		      /* Create variable */
     /* Allocate storage for string */
-    hptr += (S0 + 1 + sizeof(stackitem)) / sizeof(stackitem);
+    atl__env->heapAllocPtr += (S0 + 1 + sizeof(stackitem)) / sizeof(stackitem);
     Pop;
 }
 
@@ -2392,7 +2396,7 @@ prim P_if(void) {
     Compiling;
     Compconst(s_qbranch);       // Compile question branch
     So(1);
-    Push = (stackitem) hptr;    // Save backpatch address on stack
+    Push = (stackitem) atl__env->heapAllocPtr;    // Save backpatch address on stack
     Compconst(0);               // Compile place-holder address cell
 }
 
@@ -2407,8 +2411,8 @@ prim P_else(void) {
     Compconst(0);                   // Compile place-holder address cell
     Hpc(S0);
     bp = (stackitem *) S0;          // Get IF backpatch address
-    *bp = hptr - bp;
-    S0 = (stackitem) (hptr - 1);    // Update backpatch for THEN
+    *bp = atl__env->heapAllocPtr - bp;
+    S0 = (stackitem) (atl__env->heapAllocPtr - 1);    // Update backpatch for THEN
 }
 
 // then -- Compile THEN word
@@ -2420,7 +2424,7 @@ prim P_then(void) {
     Sl(1);
     Hpc(S0);
     bp = (stackitem *) S0;          // Get IF/ELSE backpatch address
-    *bp = hptr - bp;
+    *bp = atl__env->heapAllocPtr - bp;
     Pop;
 }
 
@@ -2438,7 +2442,7 @@ prim P_qdup(void) {
 prim P_begin(void) {
     Compiling;
     So(1);
-    Push = (stackitem) hptr;	      /* Save jump back address on stack */
+    Push = (stackitem) atl__env->heapAllocPtr;	      /* Save jump back address on stack */
 }
 
 /* Compile UNTIL */
@@ -2451,7 +2455,7 @@ prim P_until(void) {
     Compconst(s_qbranch);	      /* Compile question branch */
     Hpc(S0);
     bp = (stackitem *) S0;	      /* Get BEGIN address */
-    off = -(hptr - bp);
+    off = -(atl__env->heapAllocPtr - bp);
     Compconst(off);		      /* Compile negative jumpback address */
     Pop;
 }
@@ -2465,7 +2469,7 @@ prim P_again(void) {
     Compconst(s_branch);	      /* Compile unconditional branch */
     Hpc(S0);
     bp = (stackitem *) S0;	      /* Get BEGIN address */
-    off = -(hptr - bp);
+    off = -(atl__env->heapAllocPtr - bp);
     Compconst(off);		      /* Compile negative jumpback address */
     Pop;
 }
@@ -2476,7 +2480,7 @@ prim P_while(void) {
     So(1);
     Compconst(s_qbranch);	      /* Compile question branch */
     Compconst(0);		      /* Compile place-holder address cell */
-    Push = (stackitem) (hptr - 1);    /* Queue backpatch for REPEAT */
+    Push = (stackitem) (atl__env->heapAllocPtr - 1);    /* Queue backpatch for REPEAT */
 }
 
 /* Compile REPEAT */
@@ -2492,9 +2496,9 @@ prim P_repeat(void) {
     Compconst(s_branch);	      /* Compile unconditional branch */
     Hpc(S0);
     bp = (stackitem *) S0;	      /* Get BEGIN address */
-    off = -(hptr - bp);
+    off = -(atl__env->heapAllocPtr - bp);
     Compconst(off);		      /* Compile negative jumpback address */
-    *bp1 = hptr - bp1;                /* Backpatch REPEAT's jump out of loop */
+    *bp1 = atl__env->heapAllocPtr - bp1;                /* Backpatch REPEAT's jump out of loop */
     Pop;
 }
 
@@ -2504,7 +2508,7 @@ prim P_do(void) {
     Compconst(s_xdo);		      /* Compile runtime DO word */
     So(1);
     Compconst(0);		      /* Reserve cell for LEAVE-taking */
-    Push = (stackitem) hptr;	      /* Save jump back address on stack */
+    Push = (stackitem) atl__env->heapAllocPtr;	      /* Save jump back address on stack */
 }
 
 /* Execute DO */
@@ -2525,7 +2529,7 @@ prim P_qdo(void) {
     Compconst(s_xqdo);		      /* Compile runtime ?DO word */
     So(1);
     Compconst(0);		      /* Reserve cell for LEAVE-taking */
-    Push = (stackitem) hptr;	      /* Save jump back address on stack */
+    Push = (stackitem) atl__env->heapAllocPtr;	      /* Save jump back address on stack */
 }
 
 /* Execute ?DO */
@@ -2554,9 +2558,9 @@ prim P_loop(void) {
     Compconst(s_xloop); 	      /* Compile runtime loop */
     Hpc(S0);
     bp = (stackitem *) S0;	      /* Get DO address */
-    off = -(hptr - bp);
+    off = -(atl__env->heapAllocPtr - bp);
     Compconst(off);		      /* Compile negative jumpback address */
-    *(bp - 1) = (hptr - bp) + 1;      /* Backpatch exit address offset */
+    *(bp - 1) = (atl__env->heapAllocPtr - bp) + 1;      /* Backpatch exit address offset */
     Pop;
 }
 
@@ -2570,9 +2574,9 @@ prim P_ploop(void) {
     Compconst(s_pxloop);	      /* Compile runtime +loop */
     Hpc(S0);
     bp = (stackitem *) S0;	      /* Get DO address */
-    off = -(hptr - bp);
+    off = -(atl__env->heapAllocPtr - bp);
     Compconst(off);		      /* Compile negative jumpback address */
-    *(bp - 1) = (hptr - bp) + 1;      /* Backpatch exit address offset */
+    *(bp - 1) = (atl__env->heapAllocPtr - bp) + 1;      /* Backpatch exit address offset */
     Pop;
 }
 
@@ -2733,14 +2737,14 @@ prim P_does(void) {
         // Copy the word definition one word down in the heap to
         // permit us to prefix it with the DOES clause address.
 
-        for (hp = hptr - 1; hp >= sp; hp--) {
+        for (hp = atl__env->heapAllocPtr - 1; hp >= sp; hp--) {
             *(hp + 1) = *hp;
         }
-        hptr++; 		      // Expand allocated length of word
-        *sp++ = (stackitem) ip;       // Store DOES> clause address before
-                                      // word's definition structure.
-        createword = (dictword *) sp; // Move word definition down 1 item
-        createword->wcode = P_dodoes; // Set code field to indirect jump
+        atl__env->heapAllocPtr++;               // expand allocated length of word
+        *sp++ = (stackitem) ip;         // store DOES> clause address before
+                                        // word's definition structure.
+        createword = (dictword *) sp;   // move word definition down 1 item
+        createword->wcode = P_dodoes;   // set code field to indirect jump
 
         // Now simulate an EXIT to bail out of the definition without
         // executing the DOES> clause at definition time.
@@ -2951,7 +2955,7 @@ prim P_fetchname(void) {
      futzing with word dictionary items on the heap in the first
      place, there's a billion other ways to bring us down at
      his command. */
-    V strcpy((char *) S0, *((char **) S1) + 1);
+    strcpy((char *) S0, *((char **) S1) + 1);
     Pop2;
 }
 
@@ -3068,7 +3072,7 @@ prim P_compile(void) {
 prim P_backmark(void) {
     Compiling;
     So(1);
-    Push = (stackitem) hptr;	      /* Push heap address onto stack */
+    Push = (stackitem) atl__env->heapAllocPtr;	      /* Push heap address onto stack */
 }
 
 /* Emit backward jump offset */
@@ -3079,7 +3083,7 @@ prim P_backresolve(void) {
     Sl(1);
     Ho(1);
     Hpc(S0);
-    offset = -(hptr - (stackitem *) S0);
+    offset = -(atl__env->heapAllocPtr - (stackitem *) S0);
     Hstore = offset;
     Pop;
 }
@@ -3088,7 +3092,7 @@ prim P_backresolve(void) {
 prim P_fwdmark(void) {
     Compiling;
     Ho(1);
-    Push = (stackitem) hptr;	      /* Push heap address onto stack */
+    Push = (stackitem) atl__env->heapAllocPtr;	      /* Push heap address onto stack */
     Hstore = 0;
 }
 
@@ -3099,7 +3103,7 @@ prim P_fwdresolve(void) {
     Compiling;
     Sl(1);
     Hpc(S0);
-    offset = (hptr - (stackitem *) S0);
+    offset = (atl__env->heapAllocPtr - (stackitem *) S0);
     *((stackitem *) S0) = offset;
     Pop;
 }
@@ -3614,7 +3618,7 @@ void atl_init(void) {
         }
         wbptr = wback;
 #endif
-        if (heap == NULL) {
+        if (atl__env->heap == NULL) {
 
             /* The temporary string buffers are placed at the start of the
              heap, which permits us to pointer-check pointers into them
@@ -3629,26 +3633,25 @@ void atl_init(void) {
              stackitems. */
             atl__env->lengthTempStringBuffer += sizeof(stackitem) - (atl__env->lengthTempStringBuffer % sizeof(stackitem));
             cp = alloc((((unsigned int) atl__env->heapLength) * sizeof(stackitem)) + ((unsigned int) (atl__env->numberOfTempStringBuffers * atl__env->lengthTempStringBuffer)));
-            heapbot = (stackitem *) cp;
+            atl__env->heapBottom = (stackitem *) cp;
             atl__env->strbuf = (char **) alloc(((unsigned int) atl__env->numberOfTempStringBuffers) * sizeof(char *));
             for (i = 0; i < atl__env->numberOfTempStringBuffers; i++) {
                 atl__env->strbuf[i] = cp;
                 cp += ((unsigned int) atl__env->lengthTempStringBuffer);
             }
             atl__env->idxCurrTempStringBuffer = 0;
-            heap = (stackitem *) cp;  /* Allocatable heap starts after
-                                       the temporary strings */
+            atl__env->heap = (stackitem *) cp;  // allocatable heap starts after the temporary strings
         }
         /* The system state word is kept in the first word of the heap
          so that pointer checking doesn't bounce references to it.
          When creating the heap, we preallocate this word and initialise
          the state to the interpretive state. */
-        hptr = heap + 1;
+        atl__env->heapAllocPtr = atl__env->heap + 1;
         state = atlFalsity;
 #ifdef MEMSTAT
-        atl__env->heapMaxExtent = hptr;
+        atl__env->heapMaxExtent = atl__env->heapAllocPtr;
 #endif
-        heaptop = heap + atl__env->heapLength;
+        atl__env->heapTop = atl__env->heap + atl__env->heapLength;
 
         /* Now that dynamic memory is up and running, allocate constants
          and variables built into the system.  */
@@ -3753,14 +3756,14 @@ dictword *atl_vardef(char *name, int size) {
 #define Memerrs
     if (evalstat != ATL_SNORM)	      /* Did the heap overflow */
         return NULL;		      /* Yes.  Return NULL */
-    createword = (dictword *) hptr;   /* Develop address of word */
+    createword = (dictword *) atl__env->heapAllocPtr;   /* Develop address of word */
     createword->wcode = P_var;	      /* Store default code */
-    hptr += Dictwordl;		      /* Allocate heap space for word */
+    atl__env->heapAllocPtr += Dictwordl;		      /* Allocate heap space for word */
     while (isize > 0) {
         Hstore = 0;		      /* Allocate heap area and clear it */
         isize--;
     }
-    V strcpy(tokbuf, name);	      /* Use built-in token buffer... */
+    strcpy(tokbuf, name);	      /* Use built-in token buffer... */
     ucase(tokbuf);                    /* so ucase() doesn't wreck arg string */
     enter(tokbuf);		      /* Make dictionary entry for it */
     di = createword;		      /* Save word address */
@@ -3772,7 +3775,7 @@ dictword *atl_vardef(char *name, int size) {
 
 void atl_mark(atl_statemark *mp) {
     mp->mstack = stk;		      /* Save stack position */
-    mp->mheap = hptr;		      /* Save heap allocation marker */
+    mp->mheap = atl__env->heapAllocPtr;		      /* Save heap allocation marker */
     mp->mrstack = rstk; 	      /* Set return stack pointer */
     mp->mdict = dict;		      /* Save last item in dictionary */
 }
@@ -3790,7 +3793,7 @@ void atl_unwind(atl_statemark *mp) {
         return; 		      /* Yes.  Cannot unwind past init */
 
     stk = mp->mstack;		      /* Roll back stack allocation */
-    hptr = mp->mheap;		      /* Reset heap state */
+    atl__env->heapAllocPtr = mp->mheap;		      /* Reset heap state */
     rstk = mp->mrstack; 	      /* Reset the return stack */
 
     /* To unwind the dictionary, we can't just reset the pointer,
@@ -3983,7 +3986,7 @@ int atl_eval(char *sp) {
                             } while (dw != di);
                             // Finally, back the heap allocation pointer
                             // up to the start of the last item forgotten.
-                            hptr = (stackitem *) di;
+                            atl__env->heapAllocPtr = (stackitem *) di;
                             // Uhhhh, just one more thing.  If this word
                             // was defined with DOES>, there's a link to
                             // the method address hidden before its
@@ -3994,7 +3997,7 @@ int atl_eval(char *sp) {
 #ifdef FORGETDEBUG
                                 fprintf(stderr, " forgetting DOES> word. ");
 #endif
-                                hptr--;
+                                atl__env->heapAllocPtr--;
                             }
                         }
                     } else {
@@ -4111,9 +4114,9 @@ int atl_eval(char *sp) {
                         size_t l = (strlen(tokbuf) + 1 + sizeof(stackitem)) /
                         sizeof(stackitem);
                         Ho(l);
-                        *((char *) hptr) = l;  /* Store in-line skip length */
-                        strcpy(((char *) hptr) + 1, tokbuf);
-                        hptr += l;
+                        *((char *) atl__env->heapAllocPtr) = l;  /* Store in-line skip length */
+                        strcpy(((char *) atl__env->heapAllocPtr) + 1, tokbuf);
+                        atl__env->heapAllocPtr += l;
                     } else {
                         fprintf(stderr, "%s", tokbuf);
                     }
@@ -4125,9 +4128,9 @@ int atl_eval(char *sp) {
                         /* Compile string literal instruction, followed by
                          in-line skip length and the string literal */
                         Hstore = s_strlit;
-                        *((char *) hptr) = l;  /* Store in-line skip length */
-                        V strcpy(((char *) hptr) + 1, tokbuf);
-                        hptr += l;
+                        *((char *) atl__env->heapAllocPtr) = l;  /* Store in-line skip length */
+                        strcpy(((char *) atl__env->heapAllocPtr) + 1, tokbuf);
+                        atl__env->heapAllocPtr += l;
                     } else {
                         So(1);
                         strcpy(atl__env->strbuf[atl__env->idxCurrTempStringBuffer], tokbuf);
@@ -4289,7 +4292,7 @@ int main(int argc, const char *argv[]) {
 
         if (!fname) {
             // prompt shows pending comment and compiling state
-            fprintf(stderr, atl__env->isIgnoringComment ? "(  " : (((heap != NULL) && state) ? ":> " : "-> "));
+            fprintf(stderr, atl__env->isIgnoringComment ? "(  " : (((atl__env->heap != NULL) && state) ? ":> " : "-> "));
         }
         if (fgets(t, 132, fpInput) == NULL) {
             if (fname && defmode) {
