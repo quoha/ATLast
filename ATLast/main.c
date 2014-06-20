@@ -364,8 +364,11 @@ void rstakunder(void);
 //---------------------------------------------------------------------------------------------------------------
 //---------------------------------------------------------------------------------------------------------------
 
-#define Truth	-1L		      // Stack value for truth
-#define Falsity 0L		      // Stack value for falsity
+static const atl_int atlFalsity = 0L;           // value for falsity
+static const atl_int atlTruth   = ~atlFalsity;  // value for truth
+
+//#define Truth	-1L		      // Stack value for truth
+//#define Falsity 0L		      // Stack value for falsity
 
 typedef struct atlenv atlenv;
 struct atlenv {
@@ -416,11 +419,11 @@ atlenv *atl__NewInterpreter(void) {
     e->stackmax    = 0;
 
     // assign default public values
-    e->allowRedefinition            = Truth;
-    e->enableTrace                  = Falsity;
-    e->enableWalkback               = Truth;
+    e->allowRedefinition            = atlTruth;
+    e->enableTrace                  = atlFalsity;
+    e->enableWalkback               = atlTruth;
     e->heapLength                   = 1000;
-    e->isIgnoringComment            = Falsity;
+    e->isIgnoringComment            = atlFalsity;
     e->lineNumberLastLoadFailed     =    0;
     e->lengthTempStringBuffer       =  256;
     e->numberOfTempStringBuffers    =    4;
@@ -703,7 +706,7 @@ int atl__token(char **cp) {
                 sp++;
             }
             sp++;
-            atl__env->isIgnoringComment = Falsity;
+            atl__env->isIgnoringComment = atlFalsity;
         }
 
         while (isspace(*sp))		  /* Skip leading blanks */
@@ -813,7 +816,7 @@ int atl__token(char **cp) {
                 sp++;
                 continue;
             }
-            atl__env->isIgnoringComment = Truth;
+            atl__env->isIgnoringComment = atlTruth;
             *cp = sp;
             return TokNull;
         }
@@ -989,7 +992,7 @@ static Boolean kbquit(void) {
 #ifdef NOMEMCHECK
 #define Compiling
 #else
-#define Compiling if (state == Falsity) {notcomp(); return;}
+#define Compiling if (state == atlFalsity) {notcomp(); return;}
 #endif
 #define Compconst(x) Ho(1); Hstore = (stackitem) (x)
 #define Skipstring ip += *((char *) ip)
@@ -1087,42 +1090,42 @@ prim P_abs(void) {
 /* Test equality */
 prim P_equal(void) {
     Sl(2);
-    S1 = (S1 == S0) ? Truth : Falsity;
+    S1 = (S1 == S0) ? atlTruth : atlFalsity;
     Pop;
 }
 
 /* Test inequality */
 prim P_unequal(void) {
     Sl(2);
-    S1 = (S1 != S0) ? Truth : Falsity;
+    S1 = (S1 != S0) ? atlTruth : atlFalsity;
     Pop;
 }
 
 /* Test greater than */
 prim P_gtr(void) {
     Sl(2);
-    S1 = (S1 > S0) ? Truth : Falsity;
+    S1 = (S1 > S0) ? atlTruth : atlFalsity;
     Pop;
 }
 
 /* Test less than */
 prim P_lss(void) {
     Sl(2);
-    S1 = (S1 < S0) ? Truth : Falsity;
+    S1 = (S1 < S0) ? atlTruth : atlFalsity;
     Pop;
 }
 
 /* Test greater than or equal */
 prim P_geq(void) {
     Sl(2);
-    S1 = (S1 >= S0) ? Truth : Falsity;
+    S1 = (S1 >= S0) ? atlTruth : atlFalsity;
     Pop;
 }
 
 /* Test less than or equal */
 prim P_leq(void) {
     Sl(2);
-    S1 = (S1 <= S0) ? Truth : Falsity;
+    S1 = (S1 <= S0) ? atlTruth : atlFalsity;
     Pop;
 }
 
@@ -1207,25 +1210,25 @@ prim P_2div(void) {
 /* Equal to zero ? */
 prim P_0equal(void) {
     Sl(1);
-    S0 = (S0 == 0) ? Truth : Falsity;
+    S0 = (S0 == 0) ? atlTruth : atlFalsity;
 }
 
 /* Not equal to zero ? */
 prim P_0notequal(void) {
     Sl(1);
-    S0 = (S0 != 0) ? Truth : Falsity;
+    S0 = (S0 != 0) ? atlTruth : atlFalsity;
 }
 
 /* Greater than zero ? */
 prim P_0gtr(void) {
     Sl(1);
-    S0 = (S0 > 0) ? Truth : Falsity;
+    S0 = (S0 > 0) ? atlTruth : atlFalsity;
 }
 
 /* Less than zero ? */
 prim P_0lss(void) {
     Sl(1);
-    S0 = (S0 < 0) ? Truth : Falsity;
+    S0 = (S0 < 0) ? atlTruth : atlFalsity;
 }
 
 #endif /* SHORTCUTC */
@@ -1681,7 +1684,7 @@ prim P_fequal(void) {
     stackitem t;
 
     Sl(2 * Realsize);
-    t = (REAL1 == REAL0) ? Truth : Falsity;
+    t = (REAL1 == REAL0) ? atlTruth : atlFalsity;
     Realpop2;
     Push = t;
 }
@@ -1691,7 +1694,7 @@ prim P_funequal(void) {
     stackitem t;
 
     Sl(2 * Realsize);
-    t = (REAL1 != REAL0) ? Truth : Falsity;
+    t = (REAL1 != REAL0) ? atlTruth : atlFalsity;
     Realpop2;
     Push = t;
 }
@@ -1701,7 +1704,7 @@ prim P_fgtr(void) {
     stackitem t;
 
     Sl(2 * Realsize);
-    t = (REAL1 > REAL0) ? Truth : Falsity;
+    t = (REAL1 > REAL0) ? atlTruth : atlFalsity;
     Realpop2;
     Push = t;
 }
@@ -1711,7 +1714,7 @@ prim P_flss(void) {
     stackitem t;
 
     Sl(2 * Realsize);
-    t = (REAL1 < REAL0) ? Truth : Falsity;
+    t = (REAL1 < REAL0) ? atlTruth : atlFalsity;
     Realpop2;
     Push = t;
 }
@@ -1721,7 +1724,7 @@ prim P_fgeq(void) {
     stackitem t;
 
     Sl(2 * Realsize);
-    t = (REAL1 >= REAL0) ? Truth : Falsity;
+    t = (REAL1 >= REAL0) ? atlTruth : atlFalsity;
     Realpop2;
     Push = t;
 }
@@ -1731,7 +1734,7 @@ prim P_fleq(void) {
     stackitem t;
 
     Sl(2 * Realsize);
-    t = (REAL1 <= REAL0) ? Truth : Falsity;
+    t = (REAL1 <= REAL0) ? atlTruth : atlFalsity;
     Realpop2;
     Push = t;
 }
@@ -1943,10 +1946,10 @@ prim P_fopen(void) {
     Isfile(S0);
     fd = fopen((char *) S2, fopenmodes[S1]);
     if (fd == NULL) {
-        stat = Falsity;
+        stat = atlFalsity;
     } else {
         *(((stackitem *) S0) + 1) = (stackitem) fd;
-        stat = Truth;
+        stat = atlTruth;
     }
     Pop2;
     S0 = stat;
@@ -1967,7 +1970,7 @@ prim P_fclose(void) {
 prim P_fdelete(void) {
     Sl(1);
     Hpc(S0);
-    S0 = (unlink((char *) S0) == 0) ? Truth : Falsity;
+    S0 = (unlink((char *) S0) == 0) ? atlTruth : atlFalsity;
 }
 
 /* Get line: fd string -- flag */
@@ -1977,9 +1980,9 @@ prim P_fgetline(void) {
     Isfile(S1);
     Isopen(S1);
     if (atl_fgetsp((char *) S0, 132, FileD(S1)) == NULL) {
-        S1 = Falsity;
+        S1 = atlFalsity;
     } else {
-        S1 = Truth;
+        S1 = atlTruth;
     }
     Pop;
 }
@@ -1991,9 +1994,9 @@ prim P_fputline(void) {
     Isfile(S0);
     Isopen(S0);
     if (fputs((char *) S1, FileD(S0)) == EOF) {
-        S1 = Falsity;
+        S1 = atlFalsity;
     } else {
-        S1 = putc('\n', FileD(S0)) == EOF ? Falsity : Truth;
+        S1 = putc('\n', FileD(S0)) == EOF ? atlFalsity : atlTruth;
     }
     Pop;
 }
@@ -2652,7 +2655,7 @@ prim P_abortq(void) {
 #endif /* WALKBACK */
         P_abort();		      /* Abort */
         // reset all interpretation state
-        atl__env->isIgnoringComment = state = Falsity;
+        atl__env->isIgnoringComment = state = atlFalsity;
         forgetpend = defpend = stringlit = tickpend = ctickpend = atlFalse;
     }
 }
@@ -2667,12 +2670,12 @@ prim P_immediate(void) {
 /* Set interpret state */
 prim P_lbrack(void) {
     Compiling;
-    state = Falsity;
+    state = atlFalsity;
 }
 
 /* Restore compile state */
 prim P_rbrack(void) {
-    state = Truth;
+    state = atlTruth;
 }
 
 /* Execute indirect call on method */
@@ -2753,7 +2756,7 @@ prim P_does(void) {
 // : -- begin compilation
 //
 prim P_colon(void) {
-    state = Truth;		      // Set compilation underway
+    state = atlTruth;		      // Set compilation underway
     P_create(); 		      // Create conventional word
 }
 
@@ -2763,7 +2766,7 @@ prim P_semicolon(void) {
     Compiling;
     Ho(1);
     Hstore = s_exit;
-    state = Falsity;		      // No longer compiling
+    state = atlFalsity;		      // No longer compiling
 
     // We wait until now to plug the P_nest code so that it will be
     // present only in completed definitions.
@@ -2984,7 +2987,7 @@ prim P_system(void) {
 /* Set or clear tracing of execution */
 prim P_trace(void) {
     Sl(1);
-    atl__env->enableTrace = (S0 == 0) ? Falsity : Truth;
+    atl__env->enableTrace = (S0 == 0) ? atlFalsity : atlTruth;
     Pop;
 }
 #endif /* TRACE */
@@ -2993,7 +2996,7 @@ prim P_trace(void) {
 /* Set or clear error walkback */
 prim P_walkback(void) {
     Sl(1);
-    atl__env->enableWalkback = (S0 == 0) ? Falsity : Truth;
+    atl__env->enableWalkback = (S0 == 0) ? atlFalsity : atlTruth;
     Pop;
 }
 #endif /* WALKBACK */
@@ -3449,7 +3452,7 @@ static void trouble(char *kind) {
 #endif /* WALKBACK */
     P_abort();			      /* Abort */
     // reset all interpretation state */
-    atl__env->isIgnoringComment = state = Falsity;
+    atl__env->isIgnoringComment = state = atlFalsity;
     forgetpend = defpend = stringlit = tickpend = ctickpend = atlFalse;
 }
 
@@ -3641,7 +3644,7 @@ void atl_init(void) {
          When creating the heap, we preallocate this word and initialise
          the state to the interpretive state. */
         hptr = heap + 1;
-        state = Falsity;
+        state = atlFalsity;
 #ifdef MEMSTAT
         atl__env->heapmax = hptr;
 #endif
@@ -3839,7 +3842,7 @@ int atl_load(FILE *fp) {
     /* If there were no other errors, check for a runaway comment.  If
      we ended the file in comment-ignore mode, set the runaway comment
      error status and unwind the file.  */
-    if ((es == ATL_SNORM) && (atl__env->isIgnoringComment == Truth)) {
+    if ((es == ATL_SNORM) && (atl__env->isIgnoringComment == atlTruth)) {
 #ifdef MEMMESSAGE
         fprintf(stderr, "\nrunaway `(' comment.\n");
 #endif
@@ -4053,7 +4056,7 @@ int atl_eval(char *sp) {
                         fprintf(stderr, " '%s' undefined ", tokbuf);
 #endif
                         evalstat = ATL_UNDEFINED;
-                        state = Falsity;
+                        state = atlFalsity;
                     }
                 }
                 break;
@@ -4206,7 +4209,7 @@ int main(int argc, const char *argv[]) {
                     argv[idx] = 0;
                     break;
                 case 't':
-                    atl__env->enableTrace = Truth;
+                    atl__env->enableTrace = atlTruth;
                     argv[idx] = 0;
                     break;
                 case '?':
