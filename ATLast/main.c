@@ -160,7 +160,6 @@ extern atl_int atl_rstklen;	      // Initial/current return stack length
 extern atl_int atl_heaplen;	      // Initial/current heap length
 extern atl_int atl_ltempstr;      // Temporary string buffer length
 extern atl_int atl_ntempstr;      // Number of temporary string buffers
-extern atl_int atl_walkback;      // Error walkback enabled mode
 
 //  ATL_EVAL return status codes
 
@@ -443,7 +442,6 @@ struct atlenv {
     //atl_int atl_heaplen = 1000;	      /* Heap length */
     //atl_int atl_ltempstr = 256;	      /* Temporary string buffer length */
     //atl_int atl_ntempstr = 4;	      /* Number of temporary string buffers */
-    //atl_int atl_walkback = Truth;       /* Walkback enabled if true */
 
     // public -- visible to calling programs
     atl_int stkLength;                  // Evaluation stack length
@@ -609,8 +607,6 @@ atl_int atl_rstklen = 100;	      /* Return stack length */
 atl_int atl_heaplen = 1000;	      /* Heap length */
 atl_int atl_ltempstr = 256;	      /* Temporary string buffer length */
 atl_int atl_ntempstr = 4;	      /* Number of temporary string buffers */
-
-atl_int atl_walkback = Truth;       /* Walkback enabled if true */
 
 /*  Local variables  */
 
@@ -3084,7 +3080,7 @@ prim P_trace(void) {
 /* Set or clear error walkback */
 prim P_walkback(void) {
     Sl(1);
-    atl_walkback = (S0 == 0) ? Falsity : Truth;
+    atl__env->enableWalkback = (S0 == 0) ? Falsity : Truth;
     Pop;
 }
 #endif /* WALKBACK */
@@ -3516,7 +3512,7 @@ Exported void atl_primdef(struct primfcn *pt) {
 /*  PWALKBACK  --  Print walkback trace.  */
 
 static void pwalkback(void) {
-    if (atl_walkback && ((curword != NULL) || (wbptr > wback))) {
+    if (atl__env->enableWalkback && ((curword != NULL) || (wbptr > wback))) {
         V printf("Walkback:\n");
         if (curword != NULL) {
             V printf("   %s\n", curword->wname + 1);
