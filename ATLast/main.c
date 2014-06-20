@@ -238,33 +238,27 @@ void rstakunder(void);
 // If explicit alignment is not requested, enable it in any case for known CPU types that require alignment.
 
 #ifndef ALIGNMENT
-#ifdef sparc
-#define ALIGNMENT
-#endif
+#   ifdef sparc
+#       define ALIGNMENT
+#   endif
 #endif
 #ifdef __TURBOC__
-#define  Keyhit()   (kbhit() ? getch() : 0)
-// DOS needs poll to detect break
-#define  Keybreak() { static int n=0; if ((n = (n+1) & 127) == 0) V kbhit(); }
-#ifdef __MSDOS__
-#define MSDOS
-#endif
+#   define  Keyhit()   (kbhit() ? getch() : 0)
+    // DOS needs poll to detect break
+#   define  Keybreak() { static int n=0; if ((n = (n+1) & 127) == 0) V kbhit(); }
+#   ifdef __MSDOS__
+#       define MSDOS
+#   endif
 #endif
 #ifdef MSDOS
-#define FBmode			      // DOS requires binary file flag
+#   define FBmode			      // DOS requires binary file flag
 #endif
 #ifdef Macintosh
-#define FBmode			      // Macintosh requires binary file flag
+#   define FBmode			      // Macintosh requires binary file flag
 #endif
 #ifdef OS2			      // OS/2 requires binary file flag
-#define FBmode
+#   define FBmode
 #endif
-
-#ifdef HIGHC
-#define unlink(x) remove(x)	      /* High C library is brain-dead */
-pragma On(PCC_msgs);		      /* High C compiler is brain-dead */
-#endif
-
 
 // STATIC is defined as "static" on platforms which require this specification on declarations for forward-referenced functions.
 
@@ -633,11 +627,9 @@ static volatile Boolean broken = atlFalse;  // asynchronous break received
 #endif
 
 #ifdef COPYRIGHT
-#ifndef HIGHC
-#ifndef lint
+#   ifndef lint
 static
-#endif
-#endif
+#   endif
 char copyright[] = "ATLAST: Changes Copyright (C) 2014 Michael Henderson.";
 #endif
 
@@ -4289,9 +4281,7 @@ int main(int argc, const char *argv[]) {
 
     // Now that all the preliminaries are out of the way, fall into the main ATLAST execution loop.
 
-#ifndef HIGHC
     signal(SIGINT, CatchCtrlC);
-#endif // HIGHC
 
     while (TRUE) {
         char t[132];
