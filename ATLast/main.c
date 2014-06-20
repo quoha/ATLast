@@ -81,6 +81,8 @@ typedef struct dw            dictword;
 typedef dictword           **rstackitem;
 typedef long                 stackitem;
 
+typedef enum {atlFalse = 0, atlTrue = 1} Boolean;
+
 // Internal state marker item
 
 struct atl_statemark {
@@ -230,9 +232,8 @@ void atl_unwind(atl_statemark *mp);
 #       ifndef NOMANGLE
 #           define stackmax    atl__sx
 #           define rstackmax   atl__rx
-#           define heapmax     atl__hx
 #       endif // NOMANGLE
-stackitem *stackmax, *heapmax;
+stackitem *stackmax;
 dictword ***rstackmax;
 #   endif
 
@@ -345,7 +346,7 @@ pragma On(PCC_msgs);		      /* High C compiler is brain-dead */
 #ifdef MEMSTAT
 #define Mss(n) if ((stk+(n))>stackmax) stackmax = stk+(n);
 #define Msr(n) if ((rstk+(n))>rstackmax) rstackmax = rstk+(n);
-#define Msh(n) if ((hptr+(n))>heapmax) heapmax = hptr+(n);
+#define Msh(n) if ((hptr+(n))>atl__env->heapmax) atl__env->heapmax = hptr+(n);
 #else
 #define Mss(n)
 #define Msr(n)
@@ -447,6 +448,13 @@ struct atlenv {
     // private
     char *inputBuffer;          // current input buffer
     int (*nextToken)(char **cp);
+
+
+    stackitem  *heapmax;    // heap maximum excursion */
+    dictword ***rstackmax;  // return stack maximum excursion */
+    stackitem  *stackmax;   // stack maximum excursion */
+
+
 };
 atlenv *atl__env = 0;
 
@@ -456,6 +464,7 @@ atlenv *atl__NewInterpreter(void) {
         return e;
     }
     e->nextToken   = atl__token;
+    e->heapmax     = 0;
     e->inputBuffer = 0;
 
     // assign default public values
@@ -571,8 +580,6 @@ atlenv *atl__NewInterpreter(void) {
 
 /*  Data types	*/
 
-typedef enum {atlFalse = 0, atlTrue = 1} Boolean;
-
 #define EOS     '\0'                  /* End of string characters */
 
 #define V	(void)		      /* Force result to void */
@@ -633,7 +640,6 @@ static dictword **wbptr;            /* Walkback trace pointer */
 #ifdef MEMSTAT
 Exported stackitem *stackmax;	      /* Stack maximum excursion */
 Exported dictword ***rstackmax;       /* Return stack maximum excursion */
-Exported stackitem *heapmax;	      /* Heap maximum excursion */
 #endif
 
 #ifdef FILEIO
@@ -994,7 +1000,7 @@ void atl_memstat(void) {
             (100L * (rstk - rstack)) / atl__env->rsLength);
     fprintf(stderr, "   %-12s %6ld    %6ld    %6ld       %3ld\n", "Heap",
             ((long) (hptr - heap)),
-            ((long) (heapmax - heap)),
+            ((long) (atl__env->heapmax - heap)),
             atl__env->heapLength,
             (100L * (hptr - heap)) / atl__env->heapLength);
 }
@@ -3700,7 +3706,7 @@ void atl_init(void) {
         hptr = heap + 1;
         state = Falsity;
 #ifdef MEMSTAT
-        heapmax = hptr;
+        atl__env->heapmax = hptr;
 #endif
         heaptop = heap + atl__env->heapLength;
 
