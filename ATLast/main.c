@@ -160,7 +160,6 @@ extern atl_int atl_rstklen;	      // Initial/current return stack length
 extern atl_int atl_heaplen;	      // Initial/current heap length
 extern atl_int atl_ltempstr;      // Temporary string buffer length
 extern atl_int atl_ntempstr;      // Number of temporary string buffers
-extern atl_int atl_trace;	      // Trace mode
 extern atl_int atl_walkback;      // Error walkback enabled mode
 
 //  ATL_EVAL return status codes
@@ -444,7 +443,6 @@ struct atlenv {
     //atl_int atl_heaplen = 1000;	      /* Heap length */
     //atl_int atl_ltempstr = 256;	      /* Temporary string buffer length */
     //atl_int atl_ntempstr = 4;	      /* Number of temporary string buffers */
-    //atl_int atl_trace = Falsity;        /* Tracing if true */
     //atl_int atl_walkback = Truth;       /* Walkback enabled if true */
 
     // public -- visible to calling programs
@@ -612,7 +610,6 @@ atl_int atl_heaplen = 1000;	      /* Heap length */
 atl_int atl_ltempstr = 256;	      /* Temporary string buffer length */
 atl_int atl_ntempstr = 4;	      /* Number of temporary string buffers */
 
-atl_int atl_trace = Falsity;        /* Tracing if true */
 atl_int atl_walkback = Truth;       /* Walkback enabled if true */
 
 /*  Local variables  */
@@ -1532,8 +1529,8 @@ prim P_strlit(void) {
     So(1);
     Push = (stackitem) (((char *) ip) + 1);
 #ifdef TRACE
-    if (atl_trace) {
-        V printf("\"%s\" ", (((char *) ip) + 1));
+    if (atl__env->enableTrace) {
+        fprintf(stderr, "\"%s\" ", (((char *) ip) + 1));
     }
 #endif /* TRACE */
     Skipstring; 		      /* Advance IP past it */
@@ -1680,11 +1677,11 @@ prim P_flit(void) {
 
     So(Realsize);
 #ifdef TRACE
-    if (atl_trace) {
+    if (atl__env->enableTrace) {
         atl_real tr;
 
-        V memcpy((char *) &tr, (char *) ip, sizeof(atl_real));
-        V printf("%g ", tr);
+        memcpy((char *) &tr, (char *) ip, sizeof(atl_real));
+        fprintf(stderr, "%g ", tr);
     }
 #endif /* TRACE */
     for (i = 0; i < Realsize; i++) {
@@ -2433,8 +2430,8 @@ prim P_2at(void) {
 prim P_dolit(void) {
     So(1);
 #ifdef TRACE
-    if (atl_trace) {
-        V printf("%ld ", (long) *ip);
+    if (atl__env->enableTrace) {
+        fprintf(stderr, "%ld ", (long) *ip);
     }
 #endif
     Push = (stackitem) *ip++;	      /* Push the next datum from the
@@ -3078,7 +3075,7 @@ prim P_system(void) {
 /* Set or clear tracing of execution */
 prim P_trace(void) {
     Sl(1);
-    atl_trace = (S0 == 0) ? Falsity : Truth;
+    atl__env->enableTrace = (S0 == 0) ? Falsity : Truth;
     Pop;
 }
 #endif /* TRACE */
@@ -3622,8 +3619,8 @@ static void divzero(void) {
 static void exword(dictword *wp) {
     curword = wp;
 #ifdef TRACE
-    if (atl_trace) {
-        V printf("\nTrace: %s ", curword->wname + 1);
+    if (atl__env->enableTrace) {
+        fprintf(stderr, "\ntrace: %s ", curword->wname + 1);
     }
 #endif /* TRACE */
     (*curword->wcode)();	      /* Execute the first word */
@@ -3640,8 +3637,8 @@ static void exword(dictword *wp) {
 #endif /* BREAK */
         curword = *ip++;
 #ifdef TRACE
-        if (atl_trace) {
-            V printf("\nTrace: %s ", curword->wname + 1);
+        if (atl__env->enableTrace) {
+            fprintf(stderr, "\ntrace: %s ", curword->wname + 1);
         }
 #endif /* TRACE */
         (*curword->wcode)();	      /* Execute the next word */
@@ -4306,7 +4303,7 @@ int main(int argc, const char *argv[]) {
                     atl_stklen = atol(cp + 1);
                     break;
                 case 't':
-                    atl_trace = TRUE;
+                    atl__env->enableTrace = Truth;
                     break;
                 case '?':
                 case 'u':
