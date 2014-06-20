@@ -159,7 +159,6 @@ extern atl_int atl_stklen;	      // Initial/current stack length
 extern atl_int atl_rstklen;	      // Initial/current return stack length
 extern atl_int atl_heaplen;	      // Initial/current heap length
 extern atl_int atl_ltempstr;      // Temporary string buffer length
-extern atl_int atl_ntempstr;      // Number of temporary string buffers
 
 //  ATL_EVAL return status codes
 
@@ -441,7 +440,6 @@ struct atlenv {
     //atl_int atl_rstklen = 100;	      /* Return stack length */
     //atl_int atl_heaplen = 1000;	      /* Heap length */
     //atl_int atl_ltempstr = 256;	      /* Temporary string buffer length */
-    //atl_int atl_ntempstr = 4;	      /* Number of temporary string buffers */
 
     // public -- visible to calling programs
     atl_int stkLength;                  // Evaluation stack length
@@ -606,7 +604,6 @@ atl_int atl_stklen = 100;	      /* Evaluation stack length */
 atl_int atl_rstklen = 100;	      /* Return stack length */
 atl_int atl_heaplen = 1000;	      /* Heap length */
 atl_int atl_ltempstr = 256;	      /* Temporary string buffer length */
-atl_int atl_ntempstr = 4;	      /* Number of temporary string buffers */
 
 /*  Local variables  */
 
@@ -3716,11 +3713,11 @@ void atl_init(void) {
             atl_ltempstr += sizeof(stackitem) -
             (atl_ltempstr % sizeof(stackitem));
             cp = alloc((((unsigned int) atl_heaplen) * sizeof(stackitem)) +
-                       ((unsigned int) (atl_ntempstr * atl_ltempstr)));
+                       ((unsigned int) (atl__env->numberOfTempStringBuffers * atl_ltempstr)));
             heapbot = (stackitem *) cp;
-            strbuf = (char **) alloc(((unsigned int) atl_ntempstr) *
+            strbuf = (char **) alloc(((unsigned int) atl__env->numberOfTempStringBuffers) *
                                      sizeof(char *));
-            for (i = 0; i < atl_ntempstr; i++) {
+            for (i = 0; i < atl__env->numberOfTempStringBuffers; i++) {
                 strbuf[i] = cp;
                 cp += ((unsigned int) atl_ltempstr);
             }
@@ -3934,7 +3931,7 @@ int atl_load(FILE *fp) {
      error status and unwind the file.  */
     if ((es == ATL_SNORM) && (atl__env->isIgnoringComment == Truth)) {
 #ifdef MEMMESSAGE
-        V printf("\nRunaway `(' comment.\n");
+        fprintf(stderr, "\nrunaway `(' comment.\n");
 #endif
         es = ATL_RUNCOMM;
         atl_unwind(&mk);
@@ -3945,20 +3942,18 @@ int atl_load(FILE *fp) {
     return es;
 }
 
-/*  ATL_PROLOGUE  --  Recognise and process prologue statement.
- Returns 1 if the statement was part of the
- prologue and 0 otherwise. */
-
+// ATL_PROLOGUE  --  Recognise and process prologue statement.
+// Returns 1 if the statement was part of the prologue and 0 otherwise.
+//
 int atl_prologue(char *sp) {
     static struct {
         char *pname;
         atl_int *pparam;
     } proname[] = {
-        {"STACK ", &atl_stklen},
-        {"RSTACK ", &atl_rstklen},
-        {"HEAP ", &atl_heaplen},
+        {"STACK "   , &atl_stklen},
+        {"RSTACK "  , &atl_rstklen},
+        {"HEAP "    , &atl_heaplen},
         {"TEMPSTRL ", &atl_ltempstr},
-        {"TEMPSTRN ", &atl_ntempstr}
     };
 
     if (strncmp(sp, "\\ *", 3) == 0) {
@@ -3966,13 +3961,22 @@ int atl_prologue(char *sp) {
         char *vp = sp + 3, *ap;
 
         ucase(vp);
-        for (i = 0; i < ELEMENTS(proname); i++) {
-            if (strncmp(sp + 3, proname[i].pname,
-                        strlen(proname[i].pname)) == 0) {
-                if ((ap = strchr(sp + 3, ' ')) != NULL) {
-                    V sscanf(ap + 1, "%li", proname[i].pparam);
+        const char *proName = "TEMPSTRN ";
+        if (strncmp(sp+3, proName, strlen(proName)) == 0) {
+            if ((ap = strchr(sp + 3, ' ')) != NULL) {
+                sscanf(ap + 1, "%li", &atl__env->numberOfTempStringBuffers);
 #ifdef PROLOGUEDEBUG
-                    V printf("Prologue set %sto %ld\n", proname[i].pname, *proname[i].pparam);
+                fprintf(stderr, "prologue set %sto %ld\n", proName, atl__env->numberOfTempStringBuffers);
+#endif
+                return 1;
+            }
+        }
+        for (i = 0; i < ELEMENTS(proname); i++) {
+            if (strncmp(sp + 3, proname[i].pname, strlen(proname[i].pname)) == 0) {
+                if ((ap = strchr(sp + 3, ' ')) != NULL) {
+                    sscanf(ap + 1, "%li", proname[i].pparam);
+#ifdef PROLOGUEDEBUG
+                    fprintf(stderr, "prologue set %sto %ld\n", proname[i].pname, *proname[i].pparam);
 #endif
                     return 1;
                 }
@@ -4204,7 +4208,7 @@ int atl_eval(char *sp) {
                         So(1);
                         V strcpy(strbuf[cstrbuf], tokbuf);
                         Push = (stackitem) strbuf[cstrbuf];
-                        cstrbuf = (cstrbuf + 1) % ((int) atl_ntempstr);
+                        cstrbuf = (cstrbuf + 1) % ((int) atl__env->numberOfTempStringBuffers);
                     }
                 }
                 break;
