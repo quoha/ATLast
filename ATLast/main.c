@@ -120,7 +120,8 @@ dictword  *atl_lookup(char *name);
 void       atl_primdef(struct primfcn *pt);
 dictword  *atl_vardef(char *name, int size);
 
-
+// internal use functions
+//
 int atl__token(char **cp);
 
 #endif
@@ -264,11 +265,6 @@ void rstakunder(void);
 
 #define STATIC static
 
-#ifdef ADS                            // Definitions if we're an ADS app
-#define printf ads_printf	      // Print through ADS
-#define Keybreak() {static int n=0; if ((n=(n+1)&127)==0) {UbI(); broken=ads_usrbrk();}}
-#endif
-
 // Dynamic storage manipulation primitives
 
 //  Stack access definitions
@@ -339,25 +335,25 @@ void rstakunder(void);
 #define Realpop2 stk -= (2 * Realsize) /* Pop two reals from stack */
 
 #ifdef ALIGNMENT
-#define REAL0 *((atl_real *) memcpy((char *) &rbuf0, (char *) &S1, sizeof(atl_real)))
-#define REAL1 *((atl_real *) memcpy((char *) &rbuf1, (char *) &S3, sizeof(atl_real)))
-#define REAL2 *((atl_real *) memcpy((char *) &rbuf2, (char *) &S5, sizeof(atl_real)))
-#define SREAL0(x) rbuf2=(x); (void)memcpy((char *) &S1, (char *) &rbuf2, sizeof(atl_real))
-#define SREAL1(x) rbuf2=(x); (void)memcpy((char *) &S3, (char *) &rbuf2, sizeof(atl_real))
+#   define REAL0        *((atl_real *) memcpy((char *) &rbuf0, (char *) &S1, sizeof(atl_real)))
+#   define REAL1        *((atl_real *) memcpy((char *) &rbuf1, (char *) &S3, sizeof(atl_real)))
+#   define REAL2        *((atl_real *) memcpy((char *) &rbuf2, (char *) &S5, sizeof(atl_real)))
+#   define SREAL0(x)    rbuf2=(x); (void)memcpy((char *) &S1, (char *) &rbuf2, sizeof(atl_real))
+#   define SREAL1(x)    rbuf2=(x); (void)memcpy((char *) &S3, (char *) &rbuf2, sizeof(atl_real))
 #else
-#define REAL0	*((atl_real *) &S1)   /* First real on stack */
-#define REAL1	*((atl_real *) &S3)   /* Second real on stack */
-#define REAL2	*((atl_real *) &S5)   /* Third real on stack */
-#define SREAL0(x) *((atl_real *) &S1) = (x)
-#define SREAL1(x) *((atl_real *) &S3) = (x)
+#   define REAL0        *((atl_real *) &S1)   /* First real on stack */
+#   define REAL1        *((atl_real *) &S3)   /* Second real on stack */
+#   define REAL2        *((atl_real *) &S5)   /* Third real on stack */
+#   define SREAL0(x)    *((atl_real *) &S1) = (x)
+#   define SREAL1(x)    *((atl_real *) &S3) = (x)
 #endif
 
 /*  File I/O definitions (used only if FILEIO is configured).  */
 
 #define FileSent    0x831FDF9DL       /* Courtesy Marinchip Radioactive random number generator */
-#define Isfile(x) Hpc(x); if (*((stackitem *)(x))!=FileSent) {fprintf(stderr, "\nnot a file\n");return;}
-#define FileD(x)  ((FILE *) *(((stackitem *) (x)) + 1))
-#define Isopen(x) if (FileD(x) == NULL) {fprintf(stderr, "\nfile not open\n");return;}
+#define Isfile(x)   Hpc(x); if (*((stackitem *)(x))!=FileSent) {fprintf(stderr, "\nnot a file\n");return;}
+#define FileD(x)    ((FILE *) *(((stackitem *) (x)) + 1))
+#define Isopen(x)   if (FileD(x) == NULL) {fprintf(stderr, "\nfile not open\n");return;}
 
 #endif
 // end of ATLast/atldef.h
