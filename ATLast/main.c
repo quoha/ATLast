@@ -221,7 +221,6 @@ void atl_unwind(atl_statemark *mp);
 #       define heaptop      atl__ht
 #       define dict         atl__dh
 #       define dictprot     atl__dp
-#       define strbuf	    atl__ts
 #       define ip           atl__ip
 #       define curword      atl__cw
 #       define createword   atl__wd
@@ -233,7 +232,7 @@ void atl_unwind(atl_statemark *mp);
 #           define rbuf1	    atl__r1
 #           define rbuf2	    atl__r2
 #       endif // NOMANGLE
-// TODO: remove these
+// TODO: move these to the altenv structure
 atl_real rbuf0, rbuf1, rbuf2;  // Real temporaries for alignment
 #   endif
 
@@ -242,11 +241,11 @@ atl_real rbuf0, rbuf1, rbuf2;  // Real temporaries for alignment
 #   define FmodeB       4   // Binary file mode
 #   define FmodeCre     8   // Create new file
 
+// TODO: move these to the altenv structure
 stackitem *stack, *stk, *stackbot, *stacktop, *heap, *hptr, *heapbot, *heaptop;
 dictword ***rstack, ***rstk, ***rstackbot, ***rstacktop;
 dictword *dict, *dictprot, *curword, *createword;
 dictword **ip;
-char **strbuf;
 
 #   ifndef NOMANGLE
 #       define P_create    atl__Pcr
@@ -443,6 +442,9 @@ struct atlenv {
     dictword ***rstackmax;              // return stack maximum excursion
     stackitem  *stackmax;               // stack maximum excursion
 
+    // TODO: rename these
+    char **strbuf;  // table of pointers to temp strings
+
 
     // real temporaries for alignment
     atl_real rbuf0;
@@ -620,7 +622,6 @@ Exported dictword *dictprot = NULL;   /* First protected item in dictionary */
 
 /* The temporary string buffers */
 
-Exported char **strbuf = NULL;	    /* Table of pointers to temp strings */
 
 /* The walkback trace stack */
 
@@ -3669,10 +3670,9 @@ void atl_init(void) {
             atl__env->lengthTempStringBuffer += sizeof(stackitem) - (atl__env->lengthTempStringBuffer % sizeof(stackitem));
             cp = alloc((((unsigned int) atl__env->heapLength) * sizeof(stackitem)) + ((unsigned int) (atl__env->numberOfTempStringBuffers * atl__env->lengthTempStringBuffer)));
             heapbot = (stackitem *) cp;
-            strbuf = (char **) alloc(((unsigned int) atl__env->numberOfTempStringBuffers) *
-                                     sizeof(char *));
+            atl__env->strbuf = (char **) alloc(((unsigned int) atl__env->numberOfTempStringBuffers) * sizeof(char *));
             for (i = 0; i < atl__env->numberOfTempStringBuffers; i++) {
-                strbuf[i] = cp;
+                atl__env->strbuf[i] = cp;
                 cp += ((unsigned int) atl__env->lengthTempStringBuffer);
             }
             atl__env->idxCurrTempStringBuffer = 0;
@@ -4152,7 +4152,7 @@ int atl_eval(char *sp) {
                         sizeof(stackitem);
                         Ho(l);
                         *((char *) hptr) = l;  /* Store in-line skip length */
-                        V strcpy(((char *) hptr) + 1, tokbuf);
+                        strcpy(((char *) hptr) + 1, tokbuf);
                         hptr += l;
                     } else {
                         V printf("%s", tokbuf);
@@ -4170,8 +4170,8 @@ int atl_eval(char *sp) {
                         hptr += l;
                     } else {
                         So(1);
-                        V strcpy(strbuf[atl__env->idxCurrTempStringBuffer], tokbuf);
-                        Push = (stackitem) strbuf[atl__env->idxCurrTempStringBuffer];
+                        strcpy(atl__env->strbuf[atl__env->idxCurrTempStringBuffer], tokbuf);
+                        Push = (stackitem) atl__env->strbuf[atl__env->idxCurrTempStringBuffer];
                         atl__env->idxCurrTempStringBuffer = (atl__env->idxCurrTempStringBuffer + 1) % ((int) atl__env->numberOfTempStringBuffers);
                     }
                 }
