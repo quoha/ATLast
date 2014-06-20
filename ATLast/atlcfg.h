@@ -23,6 +23,10 @@
 #define MEMSTAT
 #endif
 
+#ifndef NOMANGLE
+#define NOMANGLE
+#endif
+
 #ifndef READONLYSTRINGS
 #define READONLYSTRINGS
 #endif

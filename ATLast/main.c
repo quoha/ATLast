@@ -222,7 +222,6 @@ void atl_unwind(atl_statemark *mp);
 #       define dict         atl__dh
 #       define dictprot     atl__dp
 #       define strbuf	    atl__ts
-#       define cstrbuf      atl__tn
 #       define ip           atl__ip
 #       define curword      atl__cw
 #       define createword   atl__wd
@@ -234,6 +233,7 @@ void atl_unwind(atl_statemark *mp);
 #           define rbuf1	    atl__r1
 #           define rbuf2	    atl__r2
 #       endif // NOMANGLE
+// TODO: remove these
 atl_real rbuf0, rbuf1, rbuf2;  // Real temporaries for alignment
 #   endif
 
@@ -247,7 +247,6 @@ dictword ***rstack, ***rstk, ***rstackbot, ***rstacktop;
 dictword *dict, *dictprot, *curword, *createword;
 dictword **ip;
 char **strbuf;
-int cstrbuf;
 
 #   ifndef NOMANGLE
 #       define P_create    atl__Pcr
@@ -437,13 +436,18 @@ struct atlenv {
     atl_int lineNumberLastLoadFailed;   // Line where last atl_load failed or zero if no error
 
     // private
-    char *inputBuffer;          // current input buffer
-    int (*nextToken)(char **cp);
+    int        idxCurrTempStringBuffer; // index into current temp string buffer
+    stackitem  *heapmax;                // heap maximum excursion
+    char       *inputBuffer;            // current input buffer
+    int       (*nextToken)(char **cp);
+    dictword ***rstackmax;              // return stack maximum excursion
+    stackitem  *stackmax;               // stack maximum excursion
 
 
-    stackitem  *heapmax;    // heap maximum excursion */
-    dictword ***rstackmax;  // return stack maximum excursion */
-    stackitem  *stackmax;   // stack maximum excursion */
+    // real temporaries for alignment
+    atl_real rbuf0;
+    atl_real rbuf1;
+    atl_real rbuf2;
 
 
 };
@@ -456,6 +460,7 @@ atlenv *atl__NewInterpreter(void) {
     }
     e->nextToken   = atl__token;
     e->heapmax     = 0;
+    e->idxCurrTempStringBuffer = 0;
     e->inputBuffer = 0;
     e->rstackmax   = 0;
     e->stackmax    = 0;
@@ -616,7 +621,6 @@ Exported dictword *dictprot = NULL;   /* First protected item in dictionary */
 /* The temporary string buffers */
 
 Exported char **strbuf = NULL;	    /* Table of pointers to temp strings */
-Exported int cstrbuf = 0;           /* Current temp string */
 
 /* The walkback trace stack */
 
@@ -3671,7 +3675,7 @@ void atl_init(void) {
                 strbuf[i] = cp;
                 cp += ((unsigned int) atl__env->lengthTempStringBuffer);
             }
-            cstrbuf = 0;
+            atl__env->idxCurrTempStringBuffer = 0;
             heap = (stackitem *) cp;  /* Allocatable heap starts after
                                        the temporary strings */
         }
@@ -4166,9 +4170,9 @@ int atl_eval(char *sp) {
                         hptr += l;
                     } else {
                         So(1);
-                        V strcpy(strbuf[cstrbuf], tokbuf);
-                        Push = (stackitem) strbuf[cstrbuf];
-                        cstrbuf = (cstrbuf + 1) % ((int) atl__env->numberOfTempStringBuffers);
+                        V strcpy(strbuf[atl__env->idxCurrTempStringBuffer], tokbuf);
+                        Push = (stackitem) strbuf[atl__env->idxCurrTempStringBuffer];
+                        atl__env->idxCurrTempStringBuffer = (atl__env->idxCurrTempStringBuffer + 1) % ((int) atl__env->numberOfTempStringBuffers);
                     }
                 }
                 break;
