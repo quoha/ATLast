@@ -218,7 +218,7 @@ atl_real rbuf0, rbuf1, rbuf2;  // Real temporaries for alignment
 #   define FmodeCre     8   // Create new file
 
 // TODO: move these to the altenv structure
-stackitem *stack, *stk, *stacktop, *heap, *hptr, *heapbot, *heaptop;
+stackitem *stack, *stk, *heap, *hptr, *heapbot, *heaptop;
 dictword ***rstack, ***rstk, ***rstackbot, ***rstacktop;
 dictword *dict, *dictprot, *curword, *createword;
 dictword **ip;
@@ -296,7 +296,7 @@ void rstakunder(void);
 #else
 #define Memerrs
 #define Sl(x) if ((stk-stack)<(x)) {stakunder(); return Memerrs;}
-#define So(n) Mss(n) if ((stk+(n))>stacktop) {stakover(); return Memerrs;}
+#define So(n) Mss(n) if ((stk+(n))>atl__env->stkTop) {stakover(); return Memerrs;}
 #endif
 
 /*  Return stack access definitions  */
@@ -386,13 +386,15 @@ struct atlenv {
     int         idxCurrTempStringBuffer;// index into current temp string buffer
     char       *inputBuffer;            // current input buffer
     int       (*nextToken)(char **cp);
+    stackitem  *stkBottom;              // pointer to stack bottom
+    stackitem  *stkTop;                 // pointer to stack top
 
     // TODO: rename these
     stackitem  *heapmax;                // heap maximum excursion
     dictword ***rstackmax;              // return stack maximum excursion
     stackitem  *stackmax;               // stack maximum excursion
-    stackitem  *stkBottom;              // pointer to stack bottom
     char      **strbuf;                 // table of pointers to temp strings
+
 
 
     // real temporaries for alignment
@@ -550,7 +552,6 @@ atlenv *atl__NewInterpreter(void) {
 // TODO: move these
 Exported stackitem *stack = NULL;   /* Evaluation stack */
 Exported stackitem *stk;            /* Stack pointer */
-Exported stackitem *stacktop;	    /* Stack top */
 
 /* The return stack */
 
@@ -3597,7 +3598,7 @@ void atl_init(void) {
 #ifdef MEMSTAT
         atl__env->stackmax = stack;
 #endif
-        stacktop = stack + atl__env->stkLength;
+        atl__env->stkTop = stack + atl__env->stkLength;
         if (rstack == NULL) {	      /* Allocate return stack if needed */
             rstack = (dictword ***)
             alloc(((unsigned int) atl__env->rsLength) * sizeof(dictword **));
