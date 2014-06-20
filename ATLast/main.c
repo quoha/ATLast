@@ -162,7 +162,6 @@ extern atl_int atl_ltempstr;      // Temporary string buffer length
 extern atl_int atl_ntempstr;      // Number of temporary string buffers
 extern atl_int atl_trace;	      // Trace mode
 extern atl_int atl_walkback;      // Error walkback enabled mode
-extern atl_int atl_comment;	      // Currently ignoring comment
 
 //  ATL_EVAL return status codes
 
@@ -447,7 +446,6 @@ struct atlenv {
     //atl_int atl_ntempstr = 4;	      /* Number of temporary string buffers */
     //atl_int atl_trace = Falsity;        /* Tracing if true */
     //atl_int atl_walkback = Truth;       /* Walkback enabled if true */
-    //atl_int atl_comment = Falsity;      /* Currently ignoring a comment */
 
     // public -- visible to calling programs
     atl_int stkLength;                  // Evaluation stack length
@@ -616,7 +614,6 @@ atl_int atl_ntempstr = 4;	      /* Number of temporary string buffers */
 
 atl_int atl_trace = Falsity;        /* Tracing if true */
 atl_int atl_walkback = Truth;       /* Walkback enabled if true */
-atl_int atl_comment = Falsity;      /* Currently ignoring a comment */
 
 /*  Local variables  */
 
@@ -771,7 +768,7 @@ int atl__token(char **cp) {
         int tl = 0;
         Boolean istring = atlFalse, rstring = atlFalse;
 
-        if (atl_comment) {
+        if (atl__env->isIgnoringComment) {
             while (*sp != ')') {
                 if (*sp == EOS) {
                     *cp = sp;
@@ -780,7 +777,7 @@ int atl__token(char **cp) {
                 sp++;
             }
             sp++;
-            atl_comment = Falsity;
+            atl__env->isIgnoringComment = Falsity;
         }
 
         while (isspace(*sp))		  /* Skip leading blanks */
@@ -890,7 +887,7 @@ int atl__token(char **cp) {
                 sp++;
                 continue;
             }
-            atl_comment = Truth;
+            atl__env->isIgnoringComment = Truth;
             *cp = sp;
             return TokNull;
         }
@@ -2165,7 +2162,7 @@ prim P_fload(void) {
 prim P_evaluate(void) {
     int es = ATL_SNORM;
     atl_statemark mk;
-    atl_int scomm = atl_comment;      /* Stack comment pending state */
+    atl_int scomm = atl__env->isIgnoringComment;    // stack comment pending state
     dictword **sip = ip;	      /* Stack instruction pointer */
     char *sinstr = atl__env->inputBuffer; // stack input stream
     char *estring;
@@ -2182,11 +2179,11 @@ prim P_evaluate(void) {
     /* If there were no other errors, check for a runaway comment.  If
      we ended the file in comment-ignore mode, set the runaway comment
      error status and unwind the file.  */
-    if ((es == ATL_SNORM) && (atl_comment != 0)) {
+    if ((es == ATL_SNORM) && (atl__env->isIgnoringComment != 0)) {
         es = ATL_RUNCOMM;
         atl_unwind(&mk);
     }
-    atl_comment = scomm;	      /* Unstack comment pending status */
+    atl__env->isIgnoringComment = scomm;    // unstack comment pending status
     ip = sip;			      /* Unstack instruction pointer */
     atl__env->inputBuffer = sinstr; // unstack input stream
     So(1);
@@ -2750,9 +2747,9 @@ prim P_abortq(void) {
         pwalkback();
 #endif /* WALKBACK */
         P_abort();		      /* Abort */
-        atl_comment = state = Falsity;/* Reset all interpretation state */
-        forgetpend = defpend = stringlit =
-        tickpend = ctickpend = atlFalse;
+        // reset all interpretation state
+        atl__env->isIgnoringComment = state = Falsity;
+        forgetpend = defpend = stringlit = tickpend = ctickpend = atlFalse;
     }
 }
 
@@ -3545,9 +3542,9 @@ static void trouble(char *kind) {
     pwalkback();
 #endif /* WALKBACK */
     P_abort();			      /* Abort */
-    atl_comment = state = Falsity;    /* Reset all interpretation state */
-    forgetpend = defpend = stringlit =
-	tickpend = ctickpend = atlFalse;
+    // reset all interpretation state */
+    atl__env->isIgnoringComment = state = Falsity;
+    forgetpend = defpend = stringlit = tickpend = ctickpend = atlFalse;
 }
 
 /*  ATL_ERROR  --  Handle error detected by user-defined primitive.  */
@@ -3923,7 +3920,7 @@ int atl_load(FILE *fp) {
     int es = ATL_SNORM;
     char s[134];
     atl_statemark mk;
-    atl_int scomm = atl_comment;      /* Stack comment pending state */
+    atl_int scomm = atl__env->isIgnoringComment;    // stack comment pending state
     dictword **sip = ip;	      /* Stack instruction pointer */
     char *sinstr = atl__env->inputBuffer;   // stack input stream
     int lineno = 0;		      /* Current line number */
@@ -3942,14 +3939,14 @@ int atl_load(FILE *fp) {
     /* If there were no other errors, check for a runaway comment.  If
      we ended the file in comment-ignore mode, set the runaway comment
      error status and unwind the file.  */
-    if ((es == ATL_SNORM) && (atl_comment == Truth)) {
+    if ((es == ATL_SNORM) && (atl__env->isIgnoringComment == Truth)) {
 #ifdef MEMMESSAGE
         V printf("\nRunaway `(' comment.\n");
 #endif
         es = ATL_RUNCOMM;
         atl_unwind(&mk);
     }
-    atl_comment = scomm;	      /* Unstack comment pending status */
+    atl__env->isIgnoringComment = scomm;    // unstack comment pending status
     ip = sip;			      /* Unstack instruction pointer */
     atl__env->inputBuffer = sinstr; // unstack input stream
     return es;
@@ -4355,7 +4352,7 @@ int main(int argc, const char *argv[]) {
 
         if (!fname) {
             // prompt shows pending comment and compiling state
-            fprintf(stderr, atl_comment ? "(  " : (((heap != NULL) && state) ? ":> " : "-> "));
+            fprintf(stderr, atl__env->isIgnoringComment ? "(  " : (((heap != NULL) && state) ? ":> " : "-> "));
         }
         if (fgets(t, 132, fpInput) == NULL) {
             if (fname && defmode) {
