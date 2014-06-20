@@ -155,9 +155,6 @@ int atl__token(char **cp);
 
 // External symbols accessible by the calling program.
 
-extern atl_int atl_stklen;	      // Initial/current stack length
-extern atl_int atl_rstklen;	      // Initial/current return stack length
-
 //  ATL_EVAL return status codes
 
 #define ATL_SNORM       0	      // Normal evaluation
@@ -434,9 +431,6 @@ pragma On(PCC_msgs);		      /* High C compiler is brain-dead */
 
 typedef struct atlenv atlenv;
 struct atlenv {
-    //atl_int atl_stklen = 100;	      /* Evaluation stack length */
-    //atl_int atl_rstklen = 100;	      /* Return stack length */
-
     // public -- visible to calling programs
     atl_int stkLength;                  // Evaluation stack length
     atl_int rsLength;                   // Return stack length
@@ -595,9 +589,6 @@ typedef enum {atlFalse = 0, atlTrue = 1} Boolean;
 #define ELEMENTS(array) (sizeof(array)/sizeof((array)[0]))
 
 /*  Globals visible to calling programs  */
-
-atl_int atl_stklen = 100;	      /* Evaluation stack length */
-atl_int atl_rstklen = 100;	      /* Return stack length */
 
 /*  Local variables  */
 
@@ -993,13 +984,13 @@ void atl_memstat(void) {
     fprintf(stderr, "   %-12s %6ld    %6ld    %6ld       %3ld\n", "Stack",
             ((long) (stk - stack)),
             ((long) (stackmax - stack)),
-            atl_stklen,
-            (100L * (stk - stack)) / atl_stklen);
+            atl__env->stkLength,
+            (100L * (stk - stack)) / atl__env->stkLength);
     fprintf(stderr, "   %-12s %6ld    %6ld    %6ld       %3ld\n", "Return stack",
             ((long) (rstk - rstack)),
             ((long) (rstackmax - rstack)),
-            atl_rstklen,
-            (100L * (rstk - rstack)) / atl_rstklen);
+            atl__env->rsLength,
+            (100L * (rstk - rstack)) / atl__env->rsLength);
     fprintf(stderr, "   %-12s %6ld    %6ld    %6ld       %3ld\n", "Heap",
             ((long) (hptr - heap)),
             ((long) (heapmax - heap)),
@@ -3653,27 +3644,25 @@ void atl_init(void) {
 
         if (stack == NULL) {	      /* Allocate stack if needed */
             stack = (stackitem *)
-            alloc(((unsigned int) atl_stklen) * sizeof(stackitem));
+            alloc(((unsigned int) atl__env->stkLength) * sizeof(stackitem));
         }
         stk = stackbot = stack;
 #ifdef MEMSTAT
         stackmax = stack;
 #endif
-        stacktop = stack + atl_stklen;
+        stacktop = stack + atl__env->stkLength;
         if (rstack == NULL) {	      /* Allocate return stack if needed */
             rstack = (dictword ***)
-            alloc(((unsigned int) atl_rstklen) *
-                  sizeof(dictword **));
+            alloc(((unsigned int) atl__env->rsLength) * sizeof(dictword **));
         }
         rstk = rstackbot = rstack;
 #ifdef MEMSTAT
         rstackmax = rstack;
 #endif
-        rstacktop = rstack + atl_rstklen;
+        rstacktop = rstack + atl__env->rsLength;
 #ifdef WALKBACK
         if (wback == NULL) {
-            wback = (dictword **) alloc(((unsigned int) atl_rstklen) *
-                                        sizeof(dictword *));
+            wback = (dictword **) alloc(((unsigned int) atl__env->rsLength) * sizeof(dictword *));
         }
         wbptr = wback;
 #endif
@@ -3927,12 +3916,13 @@ int atl_prologue(char *sp) {
     if (strncmp(sp, "\\ *", 3) == 0) {
         char *ap;
         char *vp = sp + 3;
+        char *tail;
 
         ucase(vp);
         const char *proName = "STACK ";
         if (strncmp(vp, proName, strlen(proName)) == 0) {
             if ((ap = strchr(vp, ' ')) != NULL) {
-                sscanf(ap + 1, "%li", &atl__env->stkLength);
+                atl__env->stkLength = strtol(ap + 1, &tail, 10);
 #ifdef PROLOGUEDEBUG
                 fprintf(stderr, "prologue set %sto %ld\n", proName, atl__env->stkLength);
 #endif
@@ -3942,7 +3932,8 @@ int atl_prologue(char *sp) {
         proName = "RSTACK ";
         if (strncmp(vp, proName, strlen(proName)) == 0) {
             if ((ap = strchr(vp, ' ')) != NULL) {
-                sscanf(ap + 1, "%li", &atl__env->rsLength);
+                //sscanf(ap + 1, "%li", &atl__env->rsLength);
+                atl__env->rsLength = strtol(ap + 1, &tail, 10);
 #ifdef PROLOGUEDEBUG
                 fprintf(stderr, "prologue set %sto %ld\n", proName, atl__env->rsLength);
 #endif
@@ -3952,7 +3943,7 @@ int atl_prologue(char *sp) {
         proName = "HEAP ";
         if (strncmp(vp, proName, strlen(proName)) == 0) {
             if ((ap = strchr(vp, ' ')) != NULL) {
-                sscanf(ap + 1, "%li", &atl__env->heapLength);
+                atl__env->heapLength = strtol(ap + 1, &tail, 10);
 #ifdef PROLOGUEDEBUG
                 fprintf(stderr, "prologue set %sto %ld\n", proName, atl__env->heapLength);
 #endif
@@ -3962,7 +3953,7 @@ int atl_prologue(char *sp) {
         proName = "TEMPSTRN ";
         if (strncmp(vp, proName, strlen(proName)) == 0) {
             if ((ap = strchr(vp, ' ')) != NULL) {
-                sscanf(ap + 1, "%li", &atl__env->numberOfTempStringBuffers);
+                atl__env->numberOfTempStringBuffers = strtol(ap + 1, &tail, 10);
 #ifdef PROLOGUEDEBUG
                 fprintf(stderr, "prologue set %sto %ld\n", proName, atl__env->numberOfTempStringBuffers);
 #endif
@@ -4268,11 +4259,11 @@ int main(int argc, const char *argv[]) {
                 case 'i':
                     break;
                 case 'r':
-                    atl_rstklen = atol(cp + 1);
+                    atl__env->rsLength = atol(cp + 1);
                     argv[idx] = 0;
                     break;
                 case 's':
-                    atl_stklen = atol(cp + 1);
+                    atl__env->stkLength = atol(cp + 1);
                     argv[idx] = 0;
                     break;
                 case 't':
