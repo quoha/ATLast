@@ -355,9 +355,9 @@ void rstakunder(void);
 /*  File I/O definitions (used only if FILEIO is configured).  */
 
 #define FileSent    0x831FDF9DL       /* Courtesy Marinchip Radioactive random number generator */
-#define Isfile(x) Hpc(x); if (*((stackitem *)(x))!=FileSent) {V printf("\nNot a file\n");return;}
+#define Isfile(x) Hpc(x); if (*((stackitem *)(x))!=FileSent) {fprintf(stderr, "\nnot a file\n");return;}
 #define FileD(x)  ((FILE *) *(((stackitem *) (x)) + 1))
-#define Isopen(x) if (FileD(x) == NULL) {V printf("\nFile not open\n");return;}
+#define Isopen(x) if (FileD(x) == NULL) {fprintf(stderr, "\nfile not open\n");return;}
 
 #endif
 // end of ATLast/atldef.h
@@ -783,7 +783,7 @@ int atl__token(char **cp) {
         if (istring) {
             if (rstring) {
 #ifdef MEMMESSAGE
-                V printf("\nRunaway string: %s\n", tokbuf);
+                fprintf(stderr, "\nrunaway string: %s\n", tokbuf);
 #endif
                 evalstat = ATL_RUNSTRING;
                 return TokNull;
@@ -979,7 +979,7 @@ static Boolean kbquit(void) {
     int key;
 
     if ((key = Keyhit()) != 0) {
-        V printf("\nPress RETURN to stop, any other key to continue: ");
+        fprintf(stderr, "\npress RETURN to stop, any other key to continue: ");
         while ((key = Keyhit()) == 0) ;
         if (key == '\r' || (key == '\n'))
             return True;
@@ -2650,8 +2650,7 @@ prim P_abortq(void) {
         stringlit = atlTrue;	      /* Set string literal expected */
         Compconst(s_abortq);	      /* Compile ourselves */
     } else {
-        V printf("%s", (char *) ip);  /* Otherwise, print string literal
-                                       in in-line code. */
+        fprintf(stderr, "%s", (char *) ip);  // otherwise, print string literal in in-line code.
 #ifdef WALKBACK
         pwalkback();
 #endif /* WALKBACK */
@@ -2796,10 +2795,10 @@ prim P_tick(void) {
                 So(1);
                 Push = (stackitem) di; /* Push word compile address */
             } else {
-                V printf(" '%s' undefined ", tokbuf);
+                fprintf(stderr, " '%s' undefined ", tokbuf);
             }
         } else {
-            V printf("\nWord not specified when expected.\n");
+            fprintf(stderr, "\nword not specified when expected.\n");
             P_abort();
         }
     } else {
@@ -2905,7 +2904,9 @@ prim P_fromname(void) {
 
 /* Get compile address from link */
 prim P_fromlink(void) {
-    if (DfOff(wnext) != 0) V printf("\nLINK> Foulup--wnext is not at zero!\n");
+    if (DfOff(wnext) != 0) {
+        fprintf(stderr, "\nLINK> Foulup--wnext is not at zero!\n");
+    }
     /*  Sl(1);
      S0 -= DfOff(wnext);  */	      /* Null operation.  Wnext is first */
 }
@@ -3008,7 +3009,7 @@ prim P_wordsused(void) {
 
     while (dw != NULL) {
         if (*(dw->wname) & WORDUSED) {
-            V printf("\n%s", dw->wname + 1);
+            fprintf(stderr, "\n%s", dw->wname + 1);
         }
 #ifdef Keyhit
         if (kbquit()) {
@@ -3017,7 +3018,7 @@ prim P_wordsused(void) {
 #endif
         dw = dw->wnext;
     }
-    V printf("\n");
+    fprintf(stderr, "\n");
 }
 
 /* List words not used by program */
@@ -3026,7 +3027,7 @@ prim P_wordsunused(void) {
 
     while (dw != NULL) {
         if (!(*(dw->wname) & WORDUSED)) {
-            V printf("\n%s", dw->wname + 1);
+            fprintf(stderr, "\n%s", dw->wname + 1);
         }
 #ifdef Keyhit
         if (kbquit()) {
@@ -3035,7 +3036,7 @@ prim P_wordsunused(void) {
 #endif
         dw = dw->wnext;
     }
-    V printf("\n");
+    fprintf(stderr, "\n");
 }
 #endif /* WORDSUSED */
 
@@ -3429,13 +3430,13 @@ Exported void atl_primdef(struct primfcn *pt) {
 
 static void pwalkback(void) {
     if (atl__env->enableWalkback && ((curword != NULL) || (wbptr > wback))) {
-        V printf("Walkback:\n");
+        fprintf(stderr, "walkback:\n");
         if (curword != NULL) {
-            V printf("   %s\n", curword->wname + 1);
+            fprintf(stderr, "   %s\n", curword->wname + 1);
         }
         while (wbptr > wback) {
             dictword *wb = *(--wbptr);
-            V printf("   %s\n", wb->wname + 1);
+            fprintf(stderr, "   %s\n", wb->wname + 1);
         }
     }
 }
@@ -3445,7 +3446,7 @@ static void pwalkback(void) {
 
 static void trouble(char *kind) {
 #ifdef MEMMESSAGE
-    V printf("\n%s.\n", kind);
+    fprintf(stderr, "\n%s.\n", kind);
 #endif
 #ifdef WALKBACK
     pwalkback();
@@ -4115,7 +4116,7 @@ int atl_eval(char *sp) {
                         strcpy(((char *) hptr) + 1, tokbuf);
                         hptr += l;
                     } else {
-                        V printf("%s", tokbuf);
+                        fprintf(stderr, "%s", tokbuf);
                     }
                 } else {
                     if (state) {
