@@ -510,11 +510,6 @@ atlenv *atl__NewInterpreter(void) {
 #endif
 #endif
 
-#ifdef Macintosh
-/* Macintoshes need 32K segments, else barfage ensues */
-#pragma segment seg2a
-#endif /*Macintosh*/
-
 /*  Custom configuration.  If the tag CUSTOM has been defined (usually on
  the compiler call line), we include the file "atlcfig.h", which may
  then define INDIVIDUALLY and select the subpackages needed for its
@@ -2262,13 +2257,6 @@ prim P_rfetch(void) {
     So(1);
     Push = (stackitem) R0;
 }
-
-#ifdef Macintosh
-/* This file creates more than 32K of object code on the Mac, which causes
- MPW to barf.  So, we split it up into two code segments of <32K at this
- point. */
-#pragma segment TOOLONG
-#endif /* Macintosh */
 
 /*  Double stack manipulation items  */
 
