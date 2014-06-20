@@ -218,7 +218,7 @@ atl_real rbuf0, rbuf1, rbuf2;  // Real temporaries for alignment
 #   define FmodeCre     8   // Create new file
 
 // TODO: move these to the altenv structure
-stackitem *stack, *stk, *stackbot, *stacktop, *heap, *hptr, *heapbot, *heaptop;
+stackitem *stack, *stk, *stacktop, *heap, *hptr, *heapbot, *heaptop;
 dictword ***rstack, ***rstk, ***rstackbot, ***rstacktop;
 dictword *dict, *dictprot, *curword, *createword;
 dictword **ip;
@@ -367,9 +367,6 @@ void rstakunder(void);
 static const atl_int atlFalsity = 0L;           // value for falsity
 static const atl_int atlTruth   = ~atlFalsity;  // value for truth
 
-//#define Truth	-1L		      // Stack value for truth
-//#define Falsity 0L		      // Stack value for falsity
-
 typedef struct atlenv atlenv;
 struct atlenv {
     // public -- visible to calling programs
@@ -386,15 +383,16 @@ struct atlenv {
     atl_int lineNumberLastLoadFailed;   // Line where last atl_load failed or zero if no error
 
     // private
-    int        idxCurrTempStringBuffer; // index into current temp string buffer
-    stackitem  *heapmax;                // heap maximum excursion
+    int         idxCurrTempStringBuffer;// index into current temp string buffer
     char       *inputBuffer;            // current input buffer
     int       (*nextToken)(char **cp);
-    dictword ***rstackmax;              // return stack maximum excursion
-    stackitem  *stackmax;               // stack maximum excursion
 
     // TODO: rename these
-    char **strbuf;  // table of pointers to temp strings
+    stackitem  *heapmax;                // heap maximum excursion
+    dictword ***rstackmax;              // return stack maximum excursion
+    stackitem  *stackmax;               // stack maximum excursion
+    stackitem  *stkBottom;              // pointer to stack bottom
+    char      **strbuf;                 // table of pointers to temp strings
 
 
     // real temporaries for alignment
@@ -417,6 +415,8 @@ atlenv *atl__NewInterpreter(void) {
     e->inputBuffer = 0;
     e->rstackmax   = 0;
     e->stackmax    = 0;
+    e->stkBottom   = 0;
+    e->strbuf      = 0;
 
     // assign default public values
     e->allowRedefinition            = atlTruth;
@@ -550,7 +550,6 @@ atlenv *atl__NewInterpreter(void) {
 // TODO: move these
 Exported stackitem *stack = NULL;   /* Evaluation stack */
 Exported stackitem *stk;            /* Stack pointer */
-Exported stackitem *stackbot;	    /* Stack bottom */
 Exported stackitem *stacktop;	    /* Stack top */
 
 /* The return stack */
@@ -1873,7 +1872,7 @@ prim P_dots(void) {
     stackitem *tsp;
 
     fprintf(stderr, "stack: ");
-    if (stk == stackbot) {
+    if (stk == atl__env->stkBottom) {
         fprintf(stderr, "empty.");
     } else {
         for (tsp = stack; tsp < stk; tsp++) {
@@ -3594,7 +3593,7 @@ void atl_init(void) {
             stack = (stackitem *)
             alloc(((unsigned int) atl__env->stkLength) * sizeof(stackitem));
         }
-        stk = stackbot = stack;
+        stk = atl__env->stkBottom = stack;
 #ifdef MEMSTAT
         atl__env->stackmax = stack;
 #endif
