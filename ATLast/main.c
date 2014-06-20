@@ -281,9 +281,9 @@ void rstakunder(void);
 #define Push    *stk++              // Push item onto stack
 
 #ifdef MEMSTAT
-#define Mss(n) if ((stk+(n))>atl__env->stackmax) atl__env->stackmax = stk+(n);
-#define Msr(n) if ((rstk+(n))>atl__env->rstackmax) atl__env->rstackmax = rstk+(n);
-#define Msh(n) if ((hptr+(n))>atl__env->heapmax) atl__env->heapmax = hptr+(n);
+#define Mss(n) if ((stk+(n))>atl__env->stkMaxExtent) atl__env->stkMaxExtent = stk+(n);
+#define Msr(n) if ((rstk+(n))>atl__env->rsMaxExtent) atl__env->rsMaxExtent = rstk+(n);
+#define Msh(n) if ((hptr+(n))>atl__env->heapMaxExtent) atl__env->heapMaxExtent = hptr+(n);
 #else
 #define Mss(n)
 #define Msr(n)
@@ -383,16 +383,16 @@ struct atlenv {
     atl_int lineNumberLastLoadFailed;   // Line where last atl_load failed or zero if no error
 
     // private
+    stackitem  *heapMaxExtent;          // heap maximum excursion
     int         idxCurrTempStringBuffer;// index into current temp string buffer
     char       *inputBuffer;            // current input buffer
     int       (*nextToken)(char **cp);
+    dictword ***rsMaxExtent;            // return stack maximum excursion
     stackitem  *stkBottom;              // pointer to stack bottom
+    stackitem  *stkMaxExtent;           // stack maximum excursion
     stackitem  *stkTop;                 // pointer to stack top
 
     // TODO: rename these
-    stackitem  *heapmax;                // heap maximum excursion
-    dictword ***rstackmax;              // return stack maximum excursion
-    stackitem  *stackmax;               // stack maximum excursion
     char      **strbuf;                 // table of pointers to temp strings
 
 
@@ -411,14 +411,14 @@ atlenv *atl__NewInterpreter(void) {
     if (!e) {
         return e;
     }
-    e->nextToken   = atl__token;
-    e->heapmax     = 0;
+    e->nextToken        = atl__token;
+    e->heapMaxExtent    = 0;
     e->idxCurrTempStringBuffer = 0;
-    e->inputBuffer = 0;
-    e->rstackmax   = 0;
-    e->stackmax    = 0;
-    e->stkBottom   = 0;
-    e->strbuf      = 0;
+    e->inputBuffer      = 0;
+    e->rsMaxExtent      = 0;
+    e->stkBottom        = 0;
+    e->stkMaxExtent     = 0;
+    e->strbuf           = 0;
 
     // assign default public values
     e->allowRedefinition            = atlTruth;
@@ -937,17 +937,17 @@ void atl_memstat(void) {
 
     fprintf(stderr, "   %-12s %6ld    %6ld    %6ld       %3ld\n", "Stack",
             ((long) (stk - stack)),
-            ((long) (atl__env->stackmax - stack)),
+            ((long) (atl__env->stkMaxExtent - stack)),
             atl__env->stkLength,
             (100L * (stk - stack)) / atl__env->stkLength);
     fprintf(stderr, "   %-12s %6ld    %6ld    %6ld       %3ld\n", "Return stack",
             ((long) (rstk - rstack)),
-            ((long) (atl__env->rstackmax - rstack)),
+            ((long) (atl__env->rsMaxExtent - rstack)),
             atl__env->rsLength,
             (100L * (rstk - rstack)) / atl__env->rsLength);
     fprintf(stderr, "   %-12s %6ld    %6ld    %6ld       %3ld\n", "Heap",
             ((long) (hptr - heap)),
-            ((long) (atl__env->heapmax - heap)),
+            ((long) (atl__env->heapMaxExtent - heap)),
             atl__env->heapLength,
             (100L * (hptr - heap)) / atl__env->heapLength);
 }
@@ -3596,7 +3596,7 @@ void atl_init(void) {
         }
         stk = atl__env->stkBottom = stack;
 #ifdef MEMSTAT
-        atl__env->stackmax = stack;
+        atl__env->stkMaxExtent = stack;
 #endif
         atl__env->stkTop = stack + atl__env->stkLength;
         if (rstack == NULL) {	      /* Allocate return stack if needed */
@@ -3605,7 +3605,7 @@ void atl_init(void) {
         }
         rstk = rstackbot = rstack;
 #ifdef MEMSTAT
-        atl__env->rstackmax = rstack;
+        atl__env->rsMaxExtent = rstack;
 #endif
         rstacktop = rstack + atl__env->rsLength;
 #ifdef WALKBACK
@@ -3646,7 +3646,7 @@ void atl_init(void) {
         hptr = heap + 1;
         state = atlFalsity;
 #ifdef MEMSTAT
-        atl__env->heapmax = hptr;
+        atl__env->heapMaxExtent = hptr;
 #endif
         heaptop = heap + atl__env->heapLength;
 
