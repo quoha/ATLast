@@ -219,7 +219,6 @@ atl_real rbuf0, rbuf1, rbuf2;  // Real temporaries for alignment
 
 // TODO: move these to the altenv structure
 stackitem *stack, *stk;
-dictword ***rstack, ***rstk, ***rstackbot, ***rstacktop;
 dictword *dict, *dictprot, *curword, *createword;
 dictword **ip;
 
@@ -282,7 +281,7 @@ void rstakunder(void);
 
 #ifdef MEMSTAT
 #define Mss(n) if ((stk+(n))>atl__env->stkMaxExtent) atl__env->stkMaxExtent = stk+(n);
-#define Msr(n) if ((rstk+(n))>atl__env->rsMaxExtent) atl__env->rsMaxExtent = rstk+(n);
+#define Msr(n) if ((atl__env->rs+(n))>atl__env->rsMaxExtent) atl__env->rsMaxExtent = atl__env->rs+(n);
 #define Msh(n) if ((atl__env->heapAllocPtr+(n))>atl__env->heapMaxExtent) atl__env->heapMaxExtent = atl__env->heapAllocPtr+(n);
 #else
 #define Mss(n)
@@ -301,17 +300,17 @@ void rstakunder(void);
 
 /*  Return stack access definitions  */
 
-#define R0  rstk[-1]		      /* Top of return stack */
-#define R1  rstk[-2]		      /* Next on return stack */
-#define R2  rstk[-3]		      /* Third on return stack */
-#define Rpop rstk--		      /* Pop return stack */
-#define Rpush *rstk++		      /* Push return stack */
+#define R0  atl__env->rs[-1]		      /* Top of return stack */
+#define R1  atl__env->rs[-2]		      /* Next on return stack */
+#define R2  atl__env->rs[-3]		      /* Third on return stack */
+#define Rpop atl__env->rs--		      /* Pop return stack */
+#define Rpush *atl__env->rs++		      /* Push return stack */
 #ifdef NOMEMCHECK
 #   define Rsl(x)
 #   define Rso(n)
 #else
-#   define Rsl(x) if ((rstk-rstack)<(x)) {rstakunder(); return Memerrs;}
-#   define Rso(n) Msr(n) if ((rstk+(n))>rstacktop){rstakover(); return Memerrs;}
+#   define Rsl(x) if ((atl__env->rs-atl__env->rstack)<(x)) {rstakunder(); return Memerrs;}
+#   define Rso(n) Msr(n) if ((atl__env->rs+(n))>atl__env->rsTop){rstakover(); return Memerrs;}
 #endif
 
 /*  Heap access definitions  */
@@ -399,11 +398,11 @@ struct atlenv {
     // TODO: rename these
     char      **strbuf;                 // table of pointers to temp strings
 
-    /* The heap */
-
     // TODO: move these
-
-
+    dictword ***rstack;     // return stack
+    dictword ***rs;         // return stack pointer
+    dictword ***rsBottom;   // return stack bottom
+    dictword ***rsTop;      // return stack top
 
     // real temporaries for alignment
     atl_real rbuf0;
@@ -421,12 +420,16 @@ atlenv *atl__NewInterpreter(void) {
     }
     e->nextToken        = atl__token;
     e->heap             = 0;
-    e->heapBottom          = 0;
+    e->heapBottom       = 0;
     e->heapTop          = 0;
     e->heapMaxExtent    = 0;
-    e->heapAllocPtr             = 0;
+    e->heapAllocPtr     = 0;
     e->idxCurrTempStringBuffer = 0;
     e->inputBuffer      = 0;
+    e->rstack           = 0;
+    e->rs               = 0;
+    e->rsBottom         = 0;
+    e->rsTop            = 0;
     e->rsMaxExtent      = 0;
     e->stkBottom        = 0;
     e->stkMaxExtent     = 0;
@@ -564,14 +567,6 @@ atlenv *atl__NewInterpreter(void) {
 // TODO: move these
 Exported stackitem *stack = NULL;   /* Evaluation stack */
 Exported stackitem *stk;            /* Stack pointer */
-
-/* The return stack */
-
-// TODO: move these
-Exported dictword ***rstack = NULL; /* Return stack */
-Exported dictword ***rstk;          /* Return stack pointer */
-Exported dictword ***rstackbot;     /* Return stack bottom */
-Exported dictword ***rstacktop;     /* Return stack top */
 
 /* The dictionary */
 
@@ -945,10 +940,10 @@ void atl_memstat(void) {
             atl__env->stkLength,
             (100L * (stk - stack)) / atl__env->stkLength);
     fprintf(stderr, "   %-12s %6ld    %6ld    %6ld       %3ld\n", "Return stack",
-            ((long) (rstk - rstack)),
-            ((long) (atl__env->rsMaxExtent - rstack)),
+            ((long) (atl__env->rs - atl__env->rstack)),
+            ((long) (atl__env->rsMaxExtent - atl__env->rstack)),
             atl__env->rsLength,
-            (100L * (rstk - rstack)) / atl__env->rsLength);
+            (100L * (atl__env->rs - atl__env->rstack)) / atl__env->rsLength);
     fprintf(stderr, "   %-12s %6ld    %6ld    %6ld       %3ld\n", "Heap",
             ((long) (atl__env->heapAllocPtr - atl__env->heap)),
             ((long) (atl__env->heapMaxExtent - atl__env->heap)),
@@ -2585,7 +2580,7 @@ prim P_xloop(void) {
     Rsl(3);
     R0 = (rstackitem) (((stackitem) R0) + 1);
     if (((stackitem) R0) == ((stackitem) R1)) {
-        rstk -= 3;		      /* Pop iteration variable and limit */
+        atl__env->rs -= 3;		      /* Pop iteration variable and limit */
         ip++;			      /* Skip the jump address */
     } else {
         ip += (stackitem) *ip;
@@ -2603,7 +2598,7 @@ prim P_xploop(void) {
     Pop;
     if ((niter >= ((stackitem) R1)) &&
         (((stackitem) R0) < ((stackitem) R1))) {
-        rstk -= 3;		      /* Pop iteration variable and limit */
+        atl__env->rs -= 3;		      /* Pop iteration variable and limit */
         ip++;			      /* Skip the jump address */
     } else {
         ip += (stackitem) *ip;
@@ -2615,7 +2610,7 @@ prim P_xploop(void) {
 prim P_leave(void) {
     Rsl(3);
     ip = R2;
-    rstk -= 3;
+    atl__env->rs -= 3;
 }
 
 /* Obtain innermost loop index */
@@ -2629,12 +2624,12 @@ prim P_i(void) {
 prim P_j(void) {
     Rsl(6);
     So(1);
-    Push = (stackitem) rstk[-4];      /* It's the 4th item on return stack */
+    Push = (stackitem) atl__env->rs[-4];      /* It's the 4th item on return stack */
 }
 
 /* Terminate execution */
 prim P_quit(void) {
-    rstk = rstack;		      /* Clear return stack */
+    atl__env->rs = atl__env->rstack;		      /* Clear return stack */
 #ifdef WALKBACK
     wbptr = wback;
 #endif
@@ -3603,15 +3598,15 @@ void atl_init(void) {
         atl__env->stkMaxExtent = stack;
 #endif
         atl__env->stkTop = stack + atl__env->stkLength;
-        if (rstack == NULL) {	      /* Allocate return stack if needed */
-            rstack = (dictword ***)
+        if (atl__env->rstack == NULL) {	      /* Allocate return stack if needed */
+            atl__env->rstack = (dictword ***)
             alloc(((unsigned int) atl__env->rsLength) * sizeof(dictword **));
         }
-        rstk = rstackbot = rstack;
+        atl__env->rs = atl__env->rsBottom = atl__env->rstack;
 #ifdef MEMSTAT
-        atl__env->rsMaxExtent = rstack;
+        atl__env->rsMaxExtent = atl__env->rstack;
 #endif
-        rstacktop = rstack + atl__env->rsLength;
+        atl__env->rsTop = atl__env->rstack + atl__env->rsLength;
 #ifdef WALKBACK
         if (wback == NULL) {
             wback = (dictword **) alloc(((unsigned int) atl__env->rsLength) * sizeof(dictword *));
@@ -3776,7 +3771,7 @@ dictword *atl_vardef(char *name, int size) {
 void atl_mark(atl_statemark *mp) {
     mp->mstack = stk;		      /* Save stack position */
     mp->mheap = atl__env->heapAllocPtr;		      /* Save heap allocation marker */
-    mp->mrstack = rstk; 	      /* Set return stack pointer */
+    mp->mrstack = atl__env->rs; 	      /* Set return stack pointer */
     mp->mdict = dict;		      /* Save last item in dictionary */
 }
 
@@ -3794,7 +3789,7 @@ void atl_unwind(atl_statemark *mp) {
 
     stk = mp->mstack;		      /* Roll back stack allocation */
     atl__env->heapAllocPtr = mp->mheap;		      /* Reset heap state */
-    rstk = mp->mrstack; 	      /* Reset the return stack */
+    atl__env->rs = mp->mrstack; 	      /* Reset the return stack */
 
     /* To unwind the dictionary, we can't just reset the pointer,
      we must walk back through the chain and release all the name
