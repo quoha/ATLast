@@ -402,10 +402,14 @@ struct atlenv {
     dictword ***rs;         // return stack pointer
     char      **strbuf;                 // table of pointers to temp strings
 
+    // TODO: move these
+    dictword  **walkback;               // walkback trace buffer
+    dictword  **walkbackPointer;        // walkback trace pointer (stack trace?)
+
     // real temporaries for alignment
-    atl_real rbuf0;
-    atl_real rbuf1;
-    atl_real rbuf2;
+    atl_real    rbuf0;
+    atl_real    rbuf1;
+    atl_real    rbuf2;
 
 
 };
@@ -436,6 +440,8 @@ atlenv *atl__NewInterpreter(void) {
     e->rstack           = 0;
     e->rs               = 0;
     e->strbuf           = 0;
+    e->walkback         = 0;
+    e->walkbackPointer  = 0;
 
     // assign default public values
     e->allowRedefinition            = atlTruth;
@@ -502,33 +508,33 @@ atlenv *atl__NewInterpreter(void) {
  defined.  Otherwise, we automatically enable all the subpackages.  */
 
 #ifndef INDIVIDUALLY
-#define ARRAY                   /* Array subscripting words */
-#define BREAK                   /* Asynchronous break facility */
-#define COMPILERW               /* Compiler-writing words */
-#define CONIO                   /* Interactive console I/O */
-#define DEFFIELDS               /* Definition field access for words */
-#define DOUBLE                  /* Double word primitives (2DUP) */
-#define EVALUATE                /* The EVALUATE primitive */
-#define FILEIO                  /* File I/O primitives */
-#define MATH                    /* Math functions */
-#define MEMMESSAGE              /* Print message for stack/heap errors */
-#define PROLOGUE                /* Prologue processing and auto-init */
-#define REAL                    /* Floating point numbers */
-#define SHORTCUTA               /* Shortcut integer arithmetic words */
-#define SHORTCUTC               /* Shortcut integer comparison */
-#define STRING                  /* String functions */
-#define SYSTEM                  /* System command function */
-#ifndef NOMEMCHECK
-#define TRACE               /* Execution tracing */
-#define WALKBACK            /* Walkback trace */
-#define WORDSUSED           /* Logging of words used and unused */
-#endif /* NOMEMCHECK */
+#   define ARRAY                   /* Array subscripting words */
+#   define BREAK                   /* Asynchronous break facility */
+#   define COMPILERW               /* Compiler-writing words */
+#   define CONIO                   /* Interactive console I/O */
+#   define DEFFIELDS               /* Definition field access for words */
+#   define DOUBLE                  /* Double word primitives (2DUP) */
+#   define EVALUATE                /* The EVALUATE primitive */
+#   define FILEIO                  /* File I/O primitives */
+#   define MATH                    /* Math functions */
+#   define MEMMESSAGE              /* Print message for stack/heap errors */
+#   define PROLOGUE                /* Prologue processing and auto-init */
+#   define REAL                    /* Floating point numbers */
+#   define SHORTCUTA               /* Shortcut integer arithmetic words */
+#   define SHORTCUTC               /* Shortcut integer comparison */
+#   define STRING                  /* String functions */
+#   define SYSTEM                  /* System command function */
+#   ifndef NOMEMCHECK
+#       define TRACE               /* Execution tracing */
+#       define WALKBACK            /* Walkback trace */
+#       define WORDSUSED           /* Logging of words used and unused */
+#   endif /* NOMEMCHECK */
 #endif /* !INDIVIDUALLY */
 
 #include "atldef.h"
 
 #ifdef MATH
-#include <math.h>
+#   include <math.h>
 #endif
 
 /* LINTLIBRARY */
@@ -536,7 +542,7 @@ atlenv *atl__NewInterpreter(void) {
 /* Implicit functions (work for all numeric types). */
 
 #ifdef abs
-#undef abs
+#   undef abs
 #endif
 #define abs(x)	 ((x) < 0    ? -(x) : (x))
 #define max(a,b) ((a) >  (b) ?	(a) : (b))
@@ -581,12 +587,6 @@ Exported dictword *dictprot = NULL;   /* First protected item in dictionary */
 
 
 /* The walkback trace stack */
-
-#ifdef WALKBACK
-// TODO: move these
-static dictword **wback = NULL;     /* Walkback trace buffer */
-static dictword **wbptr;            /* Walkback trace pointer */
-#endif /* WALKBACK */
 
 #ifdef FILEIO
 // TODO: move these
@@ -2357,7 +2357,7 @@ prim P_dolit(void) {
 prim P_nest(void) {
     Rso(1);
 #ifdef WALKBACK
-    *wbptr++ = curword; 	      /* Place word on walkback stack */
+    *atl__env->walkbackPointer++ = curword; 	      /* Place word on walkback stack */
 #endif
     Rpush = ip; 		      /* Push instruction pointer */
     ip = (((dictword **) curword) + Dictwordl);
@@ -2367,7 +2367,7 @@ prim P_nest(void) {
 prim P_exit(void) {
     Rsl(1);
 #ifdef WALKBACK
-    wbptr = (wbptr > wback) ? wbptr - 1 : wback;
+    atl__env->walkbackPointer = (atl__env->walkbackPointer > atl__env->walkback) ? atl__env->walkbackPointer - 1 : atl__env->walkback;
 #endif
     ip = R0;			      /* Set IP to top of return stack */
     Rpop;
@@ -2634,7 +2634,7 @@ prim P_j(void) {
 prim P_quit(void) {
     atl__env->rs = atl__env->rstack;		      /* Clear return stack */
 #ifdef WALKBACK
-    wbptr = wback;
+    atl__env->walkbackPointer = atl__env->walkback;
 #endif
     ip = NULL;			      /* Stop execution of current word */
 }
@@ -2686,7 +2686,7 @@ Exported void P_dodoes(void) {
     So(1);
     Rpush = ip; 		      /* Push instruction pointer */
 #ifdef WALKBACK
-    *wbptr++ = curword; 	      /* Place word on walkback stack */
+    *atl__env->walkbackPointer++ = curword; 	      /* Place word on walkback stack */
 #endif
     /* The compiler having craftily squirreled away the DOES> clause
      address before the word definition on the heap, we back up to
@@ -2749,7 +2749,7 @@ prim P_does(void) {
 
         ip = R0;		      // Set IP to top of return stack
 #ifdef WALKBACK
-        wbptr = (wbptr > wback) ? wbptr - 1 : wback;
+        atl__env->walkbackPointer = (atl__env->walkbackPointer > atl__env->walkback) ? atl__env->walkbackPointer - 1 : atl__env->walkback;
 #endif
         Rpop;			      // Pop the return stack
     }
@@ -3430,13 +3430,13 @@ Exported void atl_primdef(struct primfcn *pt) {
 /*  PWALKBACK  --  Print walkback trace.  */
 
 static void pwalkback(void) {
-    if (atl__env->enableWalkback && ((curword != NULL) || (wbptr > wback))) {
+    if (atl__env->enableWalkback && ((curword != NULL) || (atl__env->walkbackPointer > atl__env->walkback))) {
         fprintf(stderr, "walkback:\n");
         if (curword != NULL) {
             fprintf(stderr, "   %s\n", curword->wname + 1);
         }
-        while (wbptr > wback) {
-            dictword *wb = *(--wbptr);
+        while (atl__env->walkbackPointer > atl__env->walkback) {
+            dictword *wb = *(--atl__env->walkbackPointer);
             fprintf(stderr, "   %s\n", wb->wname + 1);
         }
     }
@@ -3611,10 +3611,10 @@ void atl_init(void) {
 #endif
         atl__env->rsTop = atl__env->rstack + atl__env->rsLength;
 #ifdef WALKBACK
-        if (wback == NULL) {
-            wback = (dictword **) alloc(((unsigned int) atl__env->rsLength) * sizeof(dictword *));
+        if (atl__env->walkback == NULL) {
+            atl__env->walkback = (dictword **) alloc(((unsigned int) atl__env->rsLength) * sizeof(dictword *));
         }
-        wbptr = wback;
+        atl__env->walkbackPointer = atl__env->walkback;
 #endif
         if (atl__env->heap == NULL) {
 
