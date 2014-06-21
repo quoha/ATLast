@@ -218,9 +218,6 @@ atl_real rbuf0, rbuf1, rbuf2;  // Real temporaries for alignment
 #   define FmodeCre     8   // Create new file
 
 // TODO: move these to the altenv structure
-stackitem *stack, *stk;
-dictword *dict, *dictprot, *curword, *createword;
-dictword **ip;
 
 void P_create(void);
 void P_dodoes(void);
@@ -396,15 +393,23 @@ struct atlenv {
     stackitem  *stkBottom;              // pointer to stack bottom
     stackitem  *stkMaxExtent;           // stack maximum excursion
     stackitem  *stkTop;                 // pointer to stack top
+    dictword  **walkback;               // walkback trace buffer
+    dictword  **walkbackPointer;        // walkback trace pointer (stack trace?)
 
     // TODO: rename these
-    dictword ***rstack;     // return stack
-    dictword ***rs;         // return stack pointer
+    dictword ***rstack;                 // return stack
+    dictword ***rs;                     // return stack pointer
     char      **strbuf;                 // table of pointers to temp strings
 
     // TODO: move these
-    dictword  **walkback;               // walkback trace buffer
-    dictword  **walkbackPointer;        // walkback trace pointer (stack trace?)
+
+    dictword   *createword;
+    dictword   *currentWord;            // Current word being executed
+    dictword   *dict;
+    dictword   *dictprot;
+    dictword  **ip;
+    stackitem  *stack;
+    stackitem  *stk;
 
     // real temporaries for alignment
     atl_real    rbuf0;
@@ -422,6 +427,10 @@ atlenv *atl__NewInterpreter(void) {
     }
 
     // assign default private values
+    e->createword       = 0;
+    e->currentWord      = 0;
+    e->dict             = 0;
+    e->dictprot         = 0;
     e->heap             = 0;
     e->heapAllocPtr     = 0;
     e->heapBottom       = 0;
@@ -429,10 +438,13 @@ atlenv *atl__NewInterpreter(void) {
     e->heapTop          = 0;
     e->idxCurrTempStringBuffer = 0;
     e->inputBuffer      = 0;
+    e->ip               = 0;
     e->nextToken        = atl__token;
     e->rsBottom         = 0;
     e->rsMaxExtent      = 0;
     e->rsTop            = 0;
+    e->stack            = 0;
+    e->stk              = 0;
     e->stkBottom        = 0;
     e->stkMaxExtent     = 0;
     e->stkTop           = 0;
@@ -613,14 +625,13 @@ static char *fopenmodes[] = {
 static char tokbuf[128];	      /* Token buffer */
 static long tokint;		      /* Scanned integer */
 #ifdef REAL
-static atl_real tokreal;	      /* Scanned real number */
-#ifdef ALIGNMENT
-Exported atl_real rbuf0, rbuf1, rbuf2; /* Real temporary buffers */
-#endif
+    static atl_real tokreal;	      /* Scanned real number */
+#   ifdef ALIGNMENT
+        Exported atl_real rbuf0, rbuf1, rbuf2; /* Real temporary buffers */
+#   endif
 #endif
 static long base = 10;		      /* Number base */
 Exported dictword **ip = NULL;	      /* Instruction pointer */
-Exported dictword *curword = NULL;    /* Current word being executed */
 static int evalstat = ATL_SNORM;      /* Evaluator status */
 static Boolean defpend = atlFalse;       /* Token definition pending */
 static Boolean forgetpend = atlFalse;    /* Forget pending */
@@ -1329,7 +1340,7 @@ prim P_cequal(void) {
 /* Push body address of current word */
 prim P_var(void) {
     So(1);
-    Push = (stackitem) (((stackitem *) curword) + Dictwordl);
+    Push = (stackitem) (((stackitem *) atl__env->currentWord) + Dictwordl);
 }
 
 Exported void P_create(void) {	      /* Create new word */
@@ -1356,7 +1367,7 @@ prim P_variable(void) {
 /* Push value in body */
 prim P_con(void) {
     So(1);
-    Push = *(((stackitem *) curword) + Dictwordl);
+    Push = *(((stackitem *) atl__env->currentWord) + Dictwordl);
 }
 
 /* Declare constant */
@@ -1380,7 +1391,7 @@ prim P_arraysub(void) {
     stackitem *isp;
 
     Sl(1);
-    array = (((stackitem *) curword) + Dictwordl);
+    array = (((stackitem *) atl__env->currentWord) + Dictwordl);
     Hpc(array);
     nsubs = *array++;		      /* Load number of subscripts */
     esize = *array++;		      /* Load element size */
@@ -1403,8 +1414,7 @@ prim P_arraysub(void) {
      and the fundamental element size, then skip the subscript bounds
      words (as many as there are subscripts).  Then, finally, we
      can add the calculated offset into the array. */
-    S0 = (stackitem) (((char *) (((stackitem *) curword) +
-                                 Dictwordl + 2 + nsubs)) + (esize * offset));
+    S0 = (stackitem) (((char *) (((stackitem *) atl__env->currentWord) + Dictwordl + 2 + nsubs)) + (esize * offset));
 }
 
 /* Declare array sub1 sub2 ... subn n esize -- array */
@@ -2297,8 +2307,8 @@ prim P_2variable(void) {
 /* Push double value in body */
 prim P_2con(void) {
     So(2);
-    Push = *(((stackitem *) curword) + Dictwordl);
-    Push = *(((stackitem *) curword) + Dictwordl + 1);
+    Push = *(((stackitem *) atl__env->currentWord) + Dictwordl);
+    Push = *(((stackitem *) atl__env->currentWord) + Dictwordl + 1);
 }
 
 /* Declare double word constant */
@@ -2357,10 +2367,10 @@ prim P_dolit(void) {
 prim P_nest(void) {
     Rso(1);
 #ifdef WALKBACK
-    *atl__env->walkbackPointer++ = curword; 	      /* Place word on walkback stack */
+    *atl__env->walkbackPointer++ = atl__env->currentWord;   // append word to walkback stack
 #endif
     Rpush = ip; 		      /* Push instruction pointer */
-    ip = (((dictword **) curword) + Dictwordl);
+    ip = (((dictword **) atl__env->currentWord) + Dictwordl);
 }
 
 /* Return to top of return stack */
@@ -2686,17 +2696,17 @@ Exported void P_dodoes(void) {
     So(1);
     Rpush = ip; 		      /* Push instruction pointer */
 #ifdef WALKBACK
-    *atl__env->walkbackPointer++ = curword; 	      /* Place word on walkback stack */
+    *atl__env->walkbackPointer++ = atl__env->currentWord;   // append word to walkback stack
 #endif
     /* The compiler having craftily squirreled away the DOES> clause
      address before the word definition on the heap, we back up to
      the heap cell before the current word and load the pointer from
      there.  This is an ABSOLUTE heap address, not a relative offset. */
-    ip = *((dictword ***) (((stackitem *) curword) - 1));
+    ip = *((dictword ***) (((stackitem *) atl__env->currentWord) - 1));
 
     /* Push the address of this word's body as the argument to the
      DOES> clause. */
-    Push = (stackitem) (((stackitem *) curword) + Dictwordl);
+    Push = (stackitem) (((stackitem *) atl__env->currentWord) + Dictwordl);
 }
 
 // does> -- specify method for word
@@ -3430,10 +3440,10 @@ Exported void atl_primdef(struct primfcn *pt) {
 /*  PWALKBACK  --  Print walkback trace.  */
 
 static void pwalkback(void) {
-    if (atl__env->enableWalkback && ((curword != NULL) || (atl__env->walkbackPointer > atl__env->walkback))) {
+    if (atl__env->enableWalkback && ((atl__env->currentWord != NULL) || (atl__env->walkbackPointer > atl__env->walkback))) {
         fprintf(stderr, "walkback:\n");
-        if (curword != NULL) {
-            fprintf(stderr, "   %s\n", curword->wname + 1);
+        if (atl__env->currentWord != NULL) {
+            fprintf(stderr, "   %s\n", atl__env->currentWord->wname + 1);
         }
         while (atl__env->walkbackPointer > atl__env->walkback) {
             dictword *wb = *(--atl__env->walkbackPointer);
@@ -3531,13 +3541,13 @@ static void divzero(void) {
 /*  EXWORD  --	Execute a word (and any sub-words it may invoke). */
 
 static void exword(dictword *wp) {
-    curword = wp;
+    atl__env->currentWord = wp;
 #ifdef TRACE
     if (atl__env->enableTrace) {
-        fprintf(stderr, "\ntrace: %s ", curword->wname + 1);
+        fprintf(stderr, "\ntrace: %s ", atl__env->currentWord->wname + 1);
     }
 #endif /* TRACE */
-    (*curword->wcode)();	      /* Execute the first word */
+    (*atl__env->currentWord->wcode)();	      /* Execute the first word */
     while (ip != NULL) {
 #ifdef BREAK
 #ifdef Keybreak
@@ -3549,15 +3559,15 @@ static void exword(dictword *wp) {
             break;
         }
 #endif /* BREAK */
-        curword = *ip++;
+        atl__env->currentWord = *ip++;
 #ifdef TRACE
         if (atl__env->enableTrace) {
-            fprintf(stderr, "\ntrace: %s ", curword->wname + 1);
+            fprintf(stderr, "\ntrace: %s ", atl__env->currentWord->wname + 1);
         }
 #endif /* TRACE */
-        (*curword->wcode)();	      /* Execute the next word */
+        (*atl__env->currentWord->wcode)();	      /* Execute the next word */
     }
-    curword = NULL;
+    atl__env->currentWord = NULL;
 }
 
 /*  ATL_INIT  --  Initialise the ATLAST system.  The dynamic storage areas
@@ -3627,8 +3637,7 @@ void atl_init(void) {
             int i;
             char *cp;
 
-            /* Force length of temporary strings to even number of
-             stackitems. */
+            /* Force length of temporary strings to even number of stackitems. */
             atl__env->lengthTempStringBuffer += sizeof(stackitem) - (atl__env->lengthTempStringBuffer % sizeof(stackitem));
             cp = alloc((((unsigned int) atl__env->heapLength) * sizeof(stackitem)) + ((unsigned int) (atl__env->numberOfTempStringBuffers * atl__env->lengthTempStringBuffer)));
             atl__env->heapBottom = (stackitem *) cp;
@@ -3651,8 +3660,7 @@ void atl_init(void) {
 #endif
         atl__env->heapTop = atl__env->heap + atl__env->heapLength;
 
-        /* Now that dynamic memory is up and running, allocate constants
-         and variables built into the system.  */
+        // now that dynamic memory is up and running, allocate constants and variables built into the system.
 
 #ifdef FILEIO
         {   static struct {
