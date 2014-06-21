@@ -369,17 +369,17 @@ static const atl_int atlTruth   = ~atlFalsity;  // value for truth
 typedef struct atlenv atlenv;
 struct atlenv {
     // public -- visible to calling programs
-    atl_int stkLength;                  // Evaluation stack length
-    atl_int rsLength;                   // Return stack length
-    atl_int heapLength;                 // Heap length
-    atl_int lengthTempStringBuffer;     // Temporary string buffer length
-    atl_int numberOfTempStringBuffers;  // Number of temporary string buffers
-
+    atl_int allowRedefinition;          // Allow redefinition without issuing the "not unique" message.
     atl_int enableTrace;                // Tracing if true
     atl_int enableWalkback;             // Walkback enabled if true
+    atl_int heapLength;                 // Heap length
     atl_int isIgnoringComment;          // Currently ignoring a comment
-    atl_int allowRedefinition;          // Allow redefinition without issuing the "not unique" message.
+    atl_int lengthTempStringBuffer;     // Temporary string buffer length
     atl_int lineNumberLastLoadFailed;   // Line where last atl_load failed or zero if no error
+    atl_int numberOfTempStringBuffers;  // Number of temporary string buffers
+    atl_int rsLength;                   // Return stack length
+    atl_int stkLength;                  // Evaluation stack length
+
 
     // private
     stackitem  *heap;                   // allocation heap
@@ -390,19 +390,17 @@ struct atlenv {
     int         idxCurrTempStringBuffer;// index into current temp string buffer
     char       *inputBuffer;            // current input buffer
     int       (*nextToken)(char **cp);
+    dictword ***rsBottom;               // return stack bottom
     dictword ***rsMaxExtent;            // return stack maximum excursion
+    dictword ***rsTop;                  // return stack top
     stackitem  *stkBottom;              // pointer to stack bottom
     stackitem  *stkMaxExtent;           // stack maximum excursion
     stackitem  *stkTop;                 // pointer to stack top
 
     // TODO: rename these
-    char      **strbuf;                 // table of pointers to temp strings
-
-    // TODO: move these
     dictword ***rstack;     // return stack
     dictword ***rs;         // return stack pointer
-    dictword ***rsBottom;   // return stack bottom
-    dictword ***rsTop;      // return stack top
+    char      **strbuf;                 // table of pointers to temp strings
 
     // real temporaries for alignment
     atl_real rbuf0;
@@ -418,21 +416,25 @@ atlenv *atl__NewInterpreter(void) {
     if (!e) {
         return e;
     }
-    e->nextToken        = atl__token;
+
+    // assign default private values
     e->heap             = 0;
-    e->heapBottom       = 0;
-    e->heapTop          = 0;
-    e->heapMaxExtent    = 0;
     e->heapAllocPtr     = 0;
+    e->heapBottom       = 0;
+    e->heapMaxExtent    = 0;
+    e->heapTop          = 0;
     e->idxCurrTempStringBuffer = 0;
     e->inputBuffer      = 0;
-    e->rstack           = 0;
-    e->rs               = 0;
+    e->nextToken        = atl__token;
     e->rsBottom         = 0;
-    e->rsTop            = 0;
     e->rsMaxExtent      = 0;
+    e->rsTop            = 0;
     e->stkBottom        = 0;
     e->stkMaxExtent     = 0;
+    e->stkTop           = 0;
+
+    e->rstack           = 0;
+    e->rs               = 0;
     e->strbuf           = 0;
 
     // assign default public values
@@ -441,11 +443,12 @@ atlenv *atl__NewInterpreter(void) {
     e->enableWalkback               = atlTruth;
     e->heapLength                   = 1000;
     e->isIgnoringComment            = atlFalsity;
-    e->lineNumberLastLoadFailed     =    0;
     e->lengthTempStringBuffer       =  256;
+    e->lineNumberLastLoadFailed     =    0;
     e->numberOfTempStringBuffers    =    4;
     e->rsLength                     =  100;
     e->stkLength                    =  100;
+
     return e;
 }
 
