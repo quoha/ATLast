@@ -389,6 +389,7 @@ struct atlenv {
     stackitem  *heapTop;                // top of heap
     int         idxCurrTempStringBuffer;// index into current temp string buffer
     char       *inputBuffer;            // current input buffer
+    dictword  **ip;                     // instruction pointer
     int       (*nextToken)(char **cp);
     dictword ***rsBottom;               // return stack bottom
     dictword ***rsMaxExtent;            // return stack maximum excursion
@@ -407,7 +408,6 @@ struct atlenv {
     // TODO: move these
 
     dictword   *dict;
-    dictword  **ip;
     stackitem  *stack;
     stackitem  *stk;
 
@@ -630,7 +630,6 @@ static long tokint;		      /* Scanned integer */
 #   endif
 #endif
 static long base = 10;		      /* Number base */
-Exported dictword **ip = NULL;	      /* Instruction pointer */
 static int evalstat = ATL_SNORM;      /* Evaluator status */
 static Boolean defpend = atlFalse;       /* Token definition pending */
 static Boolean forgetpend = atlFalse;    /* Forget pending */
@@ -1006,7 +1005,7 @@ static Boolean kbquit(void) {
 #define Compiling if (state == atlFalsity) {notcomp(); return;}
 #endif
 #define Compconst(x) Ho(1); Hstore = (stackitem) (x)
-#define Skipstring ip += *((char *) ip)
+#define Skipstring atl__env->ip += *((char *) atl__env->ip)
 
 /* Add two numbers */
 prim P_plus(void) {
@@ -1423,10 +1422,12 @@ prim P_array(void) {
 
     Sl(2);
 #ifndef NOMEMCHECK
-    if (S0 <= 0)
+    if (S0 <= 0) {
         trouble("Bad array element size");
-    if (S1 <= 0)
+    }
+    if (S1 <= 0) {
         trouble("Bad array subscript count");
+    }
 #endif /* NOMEMCHECK */
 
     nsubs = S1; 		      /* Number of subscripts */
@@ -1467,10 +1468,10 @@ prim P_array(void) {
 /* Push address of string literal */
 prim P_strlit(void) {
     So(1);
-    Push = (stackitem) (((char *) ip) + 1);
+    Push = (stackitem) (((char *) atl__env->ip) + 1);
 #ifdef TRACE
     if (atl__env->enableTrace) {
-        fprintf(stderr, "\"%s\" ", (((char *) ip) + 1));
+        fprintf(stderr, "\"%s\" ", (((char *) atl__env->ip) + 1));
     }
 #endif /* TRACE */
     Skipstring; 		      /* Advance IP past it */
@@ -1620,12 +1621,12 @@ prim P_flit(void) {
     if (atl__env->enableTrace) {
         atl_real tr;
 
-        memcpy((char *) &tr, (char *) ip, sizeof(atl_real));
+        memcpy((char *) &tr, (char *) atl__env->ip, sizeof(atl_real));
         fprintf(stderr, "%g ", tr);
     }
 #endif /* TRACE */
     for (i = 0; i < Realsize; i++) {
-        Push = (stackitem) *ip++;
+        Push = (stackitem) *atl__env->ip++;
     }
 }
 
@@ -1905,10 +1906,10 @@ prim P_dotquote(void) {
 
 /* Print literal string that follows */
 prim P_dotparen(void) {
-    if (ip == NULL) {		      /* If interpreting */
+    if (atl__env->ip == NULL) {		      /* If interpreting */
         stringlit = atlTrue;	      /* Set to print next string constant */
     } else {			      /* Otherwise, */
-        fprintf(stderr, "%s", ((char *) ip) + 1); /* print string literal in in-line code. */
+        fprintf(stderr, "%s", ((char *) atl__env->ip) + 1); /* print string literal in in-line code. */
         Skipstring;		      /* And advance IP past it */
     }
 }
@@ -2088,7 +2089,7 @@ prim P_evaluate(void) {
     int es = ATL_SNORM;
     atl_statemark mk;
     atl_int scomm = atl__env->isIgnoringComment;    // stack comment pending state
-    dictword **sip = ip;	      /* Stack instruction pointer */
+    dictword **sip = atl__env->ip;	      /* Stack instruction pointer */
     char *sinstr = atl__env->inputBuffer; // stack input stream
     char *estring;
 
@@ -2097,7 +2098,7 @@ prim P_evaluate(void) {
     estring = (char *) S0;	      /* Get string to evaluate */
     Pop;			      /* Pop so it sees arguments below it */
     atl_mark(&mk);		      /* Mark in case of error */
-    ip = NULL;			      /* Fool atl_eval into interp state */
+    atl__env->ip = NULL;			      /* Fool atl_eval into interp state */
     if ((es = atl_eval(estring)) != ATL_SNORM) {
         atl_unwind(&mk);
     }
@@ -2109,7 +2110,7 @@ prim P_evaluate(void) {
         atl_unwind(&mk);
     }
     atl__env->isIgnoringComment = scomm;    // unstack comment pending status
-    ip = sip;			      /* Unstack instruction pointer */
+    atl__env->ip = sip;			      /* Unstack instruction pointer */
     atl__env->inputBuffer = sinstr; // unstack input stream
     So(1);
     Push = es;			      /* Return eval status on top of stack */
@@ -2352,10 +2353,10 @@ prim P_dolit(void) {
     So(1);
 #ifdef TRACE
     if (atl__env->enableTrace) {
-        fprintf(stderr, "%ld ", (long) *ip);
+        fprintf(stderr, "%ld ", (long) *atl__env->ip);
     }
 #endif
-    Push = (stackitem) *ip++;	      /* Push the next datum from the
+    Push = (stackitem) *atl__env->ip++;	      /* Push the next datum from the
                                        instruction stream. */
 }
 
@@ -2367,8 +2368,8 @@ prim P_nest(void) {
 #ifdef WALKBACK
     *atl__env->walkbackPointer++ = atl__env->currentWord;   // append word to walkback stack
 #endif
-    Rpush = ip; 		      /* Push instruction pointer */
-    ip = (((dictword **) atl__env->currentWord) + Dictwordl);
+    Rpush = atl__env->ip; 		      /* Push instruction pointer */
+    atl__env->ip = (((dictword **) atl__env->currentWord) + Dictwordl);
 }
 
 /* Return to top of return stack */
@@ -2377,22 +2378,22 @@ prim P_exit(void) {
 #ifdef WALKBACK
     atl__env->walkbackPointer = (atl__env->walkbackPointer > atl__env->walkback) ? atl__env->walkbackPointer - 1 : atl__env->walkback;
 #endif
-    ip = R0;			      /* Set IP to top of return stack */
+    atl__env->ip = R0;			      /* Set IP to top of return stack */
     Rpop;
 }
 
 /* Jump to in-line address */
 prim P_branch(void) {
-    ip += (stackitem) *ip;	      /* Jump addresses are IP-relative */
+    atl__env->ip += (stackitem) *atl__env->ip;	      /* Jump addresses are IP-relative */
 }
 
 /* Conditional branch to in-line addr */
 prim P_qbranch(void) {
     Sl(1);
     if (S0 == 0)		      /* If flag is false */
-        ip += (stackitem) *ip;	      /* then branch. */
+        atl__env->ip += (stackitem) *atl__env->ip;	      /* then branch. */
     else			      /* Otherwise */
-        ip++;			      /* skip the in-line address. */
+        atl__env->ip++;			      /* skip the in-line address. */
     Pop;
 }
 
@@ -2521,8 +2522,8 @@ prim P_do(void) {
 prim P_xdo(void) {
     Sl(2);
     Rso(3);
-    Rpush = ip + ((stackitem) *ip);   /* Push exit address from loop */
-    ip++;			      /* Increment past exit address word */
+    Rpush = atl__env->ip + ((stackitem) *atl__env->ip);   /* Push exit address from loop */
+    atl__env->ip++;			      /* Increment past exit address word */
     Rpush = (rstackitem) S1;	      /* Push loop limit on return stack */
     Rpush = (rstackitem) S0;	      /* Iteration variable initial value to
                                        return stack */
@@ -2542,11 +2543,11 @@ prim P_qdo(void) {
 prim P_xqdo(void) {
     Sl(2);
     if (S0 == S1) {
-        ip += (stackitem) *ip;
+        atl__env->ip += (stackitem) *atl__env->ip;
     } else {
         Rso(3);
-        Rpush = ip + ((stackitem) *ip);/* Push exit address from loop */
-        ip++;			      /* Increment past exit address word */
+        Rpush = atl__env->ip + ((stackitem) *atl__env->ip);/* Push exit address from loop */
+        atl__env->ip++;			      /* Increment past exit address word */
         Rpush = (rstackitem) S1;      /* Push loop limit on return stack */
         Rpush = (rstackitem) S0;      /* Iteration variable initial value to
                                        return stack */
@@ -2592,9 +2593,9 @@ prim P_xloop(void) {
     R0 = (rstackitem) (((stackitem) R0) + 1);
     if (((stackitem) R0) == ((stackitem) R1)) {
         atl__env->rs -= 3;		      /* Pop iteration variable and limit */
-        ip++;			      /* Skip the jump address */
+        atl__env->ip++;			      /* Skip the jump address */
     } else {
-        ip += (stackitem) *ip;
+        atl__env->ip += (stackitem) *atl__env->ip;
     }
 }
 
@@ -2610,9 +2611,9 @@ prim P_xploop(void) {
     if ((niter >= ((stackitem) R1)) &&
         (((stackitem) R0) < ((stackitem) R1))) {
         atl__env->rs -= 3;		      /* Pop iteration variable and limit */
-        ip++;			      /* Skip the jump address */
+        atl__env->ip++;			      /* Skip the jump address */
     } else {
-        ip += (stackitem) *ip;
+        atl__env->ip += (stackitem) *atl__env->ip;
         R0 = (rstackitem) niter;
     }
 }
@@ -2620,7 +2621,7 @@ prim P_xploop(void) {
 /* Compile LEAVE */
 prim P_leave(void) {
     Rsl(3);
-    ip = R2;
+    atl__env->ip = R2;
     atl__env->rs -= 3;
 }
 
@@ -2644,7 +2645,7 @@ prim P_quit(void) {
 #ifdef WALKBACK
     atl__env->walkbackPointer = atl__env->walkback;
 #endif
-    ip = NULL;			      /* Stop execution of current word */
+    atl__env->ip = NULL;			      /* Stop execution of current word */
 }
 
 /* Abort, clearing data stack */
@@ -2659,7 +2660,7 @@ prim P_abortq(void) {
         stringlit = atlTrue;	      /* Set string literal expected */
         Compconst(s_abortq);	      /* Compile ourselves */
     } else {
-        fprintf(stderr, "%s", (char *) ip);  // otherwise, print string literal in in-line code.
+        fprintf(stderr, "%s", (char *) atl__env->ip);  // otherwise, print string literal in in-line code.
 #ifdef WALKBACK
         pwalkback();
 #endif /* WALKBACK */
@@ -2692,7 +2693,7 @@ prim P_rbrack(void) {
 Exported void P_dodoes(void) {
     Rso(1);
     So(1);
-    Rpush = ip; 		      /* Push instruction pointer */
+    Rpush = atl__env->ip; 		      /* Push instruction pointer */
 #ifdef WALKBACK
     *atl__env->walkbackPointer++ = atl__env->currentWord;   // append word to walkback stack
 #endif
@@ -2700,7 +2701,7 @@ Exported void P_dodoes(void) {
      address before the word definition on the heap, we back up to
      the heap cell before the current word and load the pointer from
      there.  This is an ABSOLUTE heap address, not a relative offset. */
-    ip = *((dictword ***) (((stackitem *) atl__env->currentWord) - 1));
+    atl__env->ip = *((dictword ***) (((stackitem *) atl__env->currentWord) - 1));
 
     /* Push the address of this word's body as the argument to the
      DOES> clause. */
@@ -2747,7 +2748,7 @@ prim P_does(void) {
             *(hp + 1) = *hp;
         }
         atl__env->heapAllocPtr++;               // expand allocated length of word
-        *sp++ = (stackitem) ip;         // store DOES> clause address before
+        *sp++ = (stackitem) atl__env->ip;         // store DOES> clause address before
                                         // word's definition structure.
         atl__env->createWord = (dictword *) sp;   // move word definition down 1 item
         atl__env->createWord->wcode = P_dodoes;   // set code field to indirect jump
@@ -2755,7 +2756,7 @@ prim P_does(void) {
         // Now simulate an EXIT to bail out of the definition without
         // executing the DOES> clause at definition time.
 
-        ip = R0;		      // Set IP to top of return stack
+        atl__env->ip = R0;		      // Set IP to top of return stack
 #ifdef WALKBACK
         atl__env->walkbackPointer = (atl__env->walkbackPointer > atl__env->walkback) ? atl__env->walkbackPointer - 1 : atl__env->walkback;
 #endif
@@ -2815,7 +2816,7 @@ prim P_tick(void) {
         // tickpend flag to cause the compilation address of the next
         // token to be pushed when it's supplied on a subsequent input
         // line.
-        if (ip == NULL) {
+        if (atl__env->ip == NULL) {
             tickpend = atlTrue;	      // Set tick pending
         } else {
             fprintf(stderr, "\nword requested by ` not on same input line.\n");
@@ -3070,7 +3071,7 @@ prim P_literal(void) {
 prim P_compile(void) {
     Compiling;
     Ho(1);
-    Hstore = (stackitem) *ip++;       /* Compile the next datum from the
+    Hstore = (stackitem) *atl__env->ip++;       /* Compile the next datum from the
                                        instruction stream. */
 }
 
@@ -3546,7 +3547,7 @@ static void exword(dictword *wp) {
     }
 #endif /* TRACE */
     (*atl__env->currentWord->wcode)();	      /* Execute the first word */
-    while (ip != NULL) {
+    while (atl__env->ip != NULL) {
 #ifdef BREAK
 #ifdef Keybreak
         Keybreak();		      /* Poll for asynchronous interrupt */
@@ -3557,7 +3558,7 @@ static void exword(dictword *wp) {
             break;
         }
 #endif /* BREAK */
-        atl__env->currentWord = *ip++;
+        atl__env->currentWord = *atl__env->ip++;
 #ifdef TRACE
         if (atl__env->enableTrace) {
             fprintf(stderr, "\ntrace: %s ", atl__env->currentWord->wname + 1);
@@ -3725,12 +3726,12 @@ int atl_exec(dictword *dw) {
 #undef Memerrs
 #define Memerrs evalstat
     Rso(1);
-    Rpush = ip; 		      /* Push instruction pointer */
-    ip = NULL;			      /* Keep exword from running away */
+    Rpush = atl__env->ip; 		      /* Push instruction pointer */
+    atl__env->ip = NULL;			      /* Keep exword from running away */
     exword(dw);
     if (evalstat == ATL_SNORM) {      /* If word ran to completion */
         Rsl(1);
-        ip = R0;		      /* Pop the return stack */
+        atl__env->ip = R0;		      /* Pop the return stack */
         Rpop;
     }
 #undef Memerrs
@@ -3831,13 +3832,13 @@ int atl_load(FILE *fp) {
     char s[134];
     atl_statemark mk;
     atl_int scomm = atl__env->isIgnoringComment;    // stack comment pending state
-    dictword **sip = ip;	      /* Stack instruction pointer */
+    dictword **sip = atl__env->ip;	      /* Stack instruction pointer */
     char *sinstr = atl__env->inputBuffer;   // stack input stream
     int lineno = 0;		      /* Current line number */
 
     atl__env->lineNumberLastLoadFailed = 0; // reset line number of error
     atl_mark(&mk);
-    ip = NULL;			      /* Fool atl_eval into interp state */
+    atl__env->ip = NULL;			      /* Fool atl_eval into interp state */
     while (atl_fgetsp(s, 132, fp) != NULL) {
         lineno++;
         if ((es = atl_eval(s)) != ATL_SNORM) {
@@ -3857,7 +3858,7 @@ int atl_load(FILE *fp) {
         atl_unwind(&mk);
     }
     atl__env->isIgnoringComment = scomm;    // unstack comment pending status
-    ip = sip;			      /* Unstack instruction pointer */
+    atl__env->ip = sip;			      /* Unstack instruction pointer */
     atl__env->inputBuffer = sinstr; // unstack input stream
     return es;
 }
