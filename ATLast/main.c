@@ -379,6 +379,7 @@ struct atlenv {
 
 
     // private
+    dictword   *currentWord;            // Current word being executed
     stackitem  *heap;                   // allocation heap
     stackitem  *heapAllocPtr;           // heap allocation pointer
     stackitem  *heapBottom;             // bottom of heap (temp string buffer)
@@ -403,8 +404,7 @@ struct atlenv {
 
     // TODO: move these
 
-    dictword   *createword;
-    dictword   *currentWord;            // Current word being executed
+    dictword   *createWord;             //  address of word pending creation
     dictword   *dict;
     dictword   *dictprot;
     dictword  **ip;
@@ -427,7 +427,7 @@ atlenv *atl__NewInterpreter(void) {
     }
 
     // assign default private values
-    e->createword       = 0;
+    e->createWord       = 0;
     e->currentWord      = 0;
     e->dict             = 0;
     e->dictprot         = 0;
@@ -638,7 +638,6 @@ static Boolean forgetpend = atlFalse;    /* Forget pending */
 static Boolean tickpend = atlFalse;      /* Take address of next word */
 static Boolean ctickpend = atlFalse;     /* Compile-time tick ['] pending */
 static Boolean cbrackpend = atlFalse;    /* [COMPILE] pending */
-Exported dictword *createword = NULL; /* Address of word pending creation */
 static Boolean stringlit = atlFalse;     /* String literal anticipated */
 
 // TODO: move these
@@ -974,11 +973,11 @@ void atl_memstat(void) {
 
 static void enter(char *tkname) {
     /* Allocate name buffer */
-    createword->wname = alloc(((unsigned int) strlen(tkname) + 2));
-    createword->wname[0] = 0;	      /* Clear flags */
-    V strcpy(createword->wname + 1, tkname); /* Copy token to name buffer */
-    createword->wnext = dict;	      /* Chain rest of dictionary to word */
-    dict = createword;		      /* Put word at head of dictionary */
+    atl__env->createWord->wname = alloc(((unsigned int) strlen(tkname) + 2));
+    atl__env->createWord->wname[0] = 0;	      /* Clear flags */
+    strcpy(atl__env->createWord->wname + 1, tkname); /* Copy token to name buffer */
+    atl__env->createWord->wnext = dict;	      /* Chain rest of dictionary to word */
+    dict = atl__env->createWord;		      /* Put word at head of dictionary */
 }
 
 #ifdef Keyhit
@@ -1346,9 +1345,9 @@ prim P_var(void) {
 Exported void P_create(void) {	      /* Create new word */
     defpend = atlTrue;		      /* Set definition pending */
     Ho(Dictwordl);
-    createword = (dictword *) atl__env->heapAllocPtr;   /* Develop address of word */
-    createword->wname = NULL;	      /* Clear pointer to name string */
-    createword->wcode = P_var;	      /* Store default code */
+    atl__env->createWord = (dictword *) atl__env->heapAllocPtr;   /* Develop address of word */
+    atl__env->createWord->wname = NULL;	      /* Clear pointer to name string */
+    atl__env->createWord->wcode = P_var;	      /* Store default code */
     atl__env->heapAllocPtr += Dictwordl;		      /* Allocate heap space for word */
 }
 
@@ -1374,7 +1373,7 @@ prim P_con(void) {
 prim P_constant(void) {
     Sl(1);
     P_create(); 		      /* Create dictionary item */
-    createword->wcode = P_con;	      /* Set code to constant push */
+    atl__env->createWord->wcode = P_con;	      /* Set code to constant push */
     Ho(1);
     Hstore = S0;		      /* Store constant value in body */
     Pop;
@@ -1449,7 +1448,7 @@ prim P_array(void) {
     asize = (asize + (sizeof(stackitem) - 1)) / sizeof(stackitem);
     Ho(asize + nsubs + 2);	      /* Reserve space for array and header */
     P_create(); 		      /* Create variable */
-    createword->wcode = P_arraysub;   /* Set method to subscript calculate */
+    atl__env->createWord->wcode = P_arraysub;   /* Set method to subscript calculate */
     Hstore = nsubs;		      /* Header <- Number of subscripts */
     Hstore = S0;		      /* Header <- Fundamental element size */
     isp = &S2;
@@ -2315,7 +2314,7 @@ prim P_2con(void) {
 prim P_2constant(void) {
     Sl(1);
     P_create(); 		      /* Create dictionary item */
-    createword->wcode = P_2con;       /* Set code to constant push */
+    atl__env->createWord->wcode = P_2con;       /* Set code to constant push */
     Ho(2);
     Hstore = S1;		      /* Store double word constant value */
     Hstore = S0;		      /* in the two words of body */
@@ -2736,8 +2735,8 @@ prim P_does(void) {
     // deallocate the heap word containing the link when a
     // DOES>-defined word is deleted.
 
-    if (createword != NULL) {
-        stackitem *sp = ((stackitem *) createword), *hp;
+    if (atl__env->createWord != NULL) {
+        stackitem *sp = ((stackitem *) atl__env->createWord), *hp;
 
         Rsl(1);
         Ho(1);
@@ -2751,8 +2750,8 @@ prim P_does(void) {
         atl__env->heapAllocPtr++;               // expand allocated length of word
         *sp++ = (stackitem) ip;         // store DOES> clause address before
                                         // word's definition structure.
-        createword = (dictword *) sp;   // move word definition down 1 item
-        createword->wcode = P_dodoes;   // set code field to indirect jump
+        atl__env->createWord = (dictword *) sp;   // move word definition down 1 item
+        atl__env->createWord->wcode = P_dodoes;   // set code field to indirect jump
 
         // Now simulate an EXIT to bail out of the definition without
         // executing the DOES> clause at definition time.
@@ -2782,10 +2781,10 @@ prim P_semicolon(void) {
 
     // We wait until now to plug the P_nest code so that it will be
     // present only in completed definitions.
-    if (createword != NULL) {
-        createword->wcode = P_nest;   // Use P_nest for code
+    if (atl__env->createWord != NULL) {
+        atl__env->createWord->wcode = P_nest;   // Use P_nest for code
     }
-    createword = NULL;		      // Flag no word being created
+    atl__env->createWord = NULL;		      // Flag no word being created
 }
 
 // ` -- take address of next word
@@ -3762,8 +3761,8 @@ dictword *atl_vardef(char *name, int size) {
 #define Memerrs
     if (evalstat != ATL_SNORM)	      /* Did the heap overflow */
         return NULL;		      /* Yes.  Return NULL */
-    createword = (dictword *) atl__env->heapAllocPtr;   /* Develop address of word */
-    createword->wcode = P_var;	      /* Store default code */
+    atl__env->createWord = (dictword *) atl__env->heapAllocPtr;   /* Develop address of word */
+    atl__env->createWord->wcode = P_var;	      /* Store default code */
     atl__env->heapAllocPtr += Dictwordl;		      /* Allocate heap space for word */
     while (isize > 0) {
         Hstore = 0;		      /* Allocate heap area and clear it */
@@ -3772,8 +3771,8 @@ dictword *atl_vardef(char *name, int size) {
     strcpy(tokbuf, name);	      /* Use built-in token buffer... */
     ucase(tokbuf);                    /* so ucase() doesn't wreck arg string */
     enter(tokbuf);		      /* Make dictionary entry for it */
-    di = createword;		      /* Save word address */
-    createword = NULL;		      /* Mark no word underway */
+    di = atl__env->createWord;		      /* Save word address */
+    atl__env->createWord = NULL;		      /* Mark no word underway */
     return di;			      /* Return new word */
 }
 
