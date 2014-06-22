@@ -420,7 +420,7 @@ atlenv *atl__NewInterpreter(void) {
         return e;
     }
 
-    // assign default private values
+    // assign default private values (TODO: allocate memory)
     e->createWord       = 0;
     e->currentWord      = 0;
     e->dict             = 0;
