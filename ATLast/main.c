@@ -381,6 +381,7 @@ struct atlenv {
     // private
     dictword   *createWord;             //  address of word pending creation
     dictword   *currentWord;            // Current word being executed
+    dictword   *dict;                   // dictionary chain head
     dictword   *dictFirstProtectedEntry;// first protected item in dictionary
     stackitem  *heap;                   // allocation heap
     stackitem  *heapAllocPtr;           // heap allocation pointer
@@ -407,7 +408,6 @@ struct atlenv {
 
     // TODO: move these
 
-    dictword   *dict;
     stackitem  *stack;
     stackitem  *stk;
 
@@ -589,15 +589,6 @@ atlenv *atl__NewInterpreter(void) {
 Exported stackitem *stack = NULL;   /* Evaluation stack */
 Exported stackitem *stk;            /* Stack pointer */
 
-/* The dictionary */
-
-// TODO: move these
-Exported dictword *dict = NULL;       /* Dictionary chain head */
-
-/* The temporary string buffers */
-
-
-/* The walkback trace stack */
 
 #ifdef FILEIO
 // TODO: move these
@@ -867,7 +858,7 @@ int atl__token(char **cp) {
 /*  LOOKUP  --	Look up token in the dictionary.  */
 
 static dictword *lookup(char *tkname) {
-    dictword *dw = dict;
+    dictword *dw = atl__env->dict;
 
     ucase(tkname);		      /* Force name to upper case */
     while (dw != NULL) {
@@ -974,8 +965,8 @@ static void enter(char *tkname) {
     atl__env->createWord->wname = alloc(((unsigned int) strlen(tkname) + 2));
     atl__env->createWord->wname[0] = 0;	      /* Clear flags */
     strcpy(atl__env->createWord->wname + 1, tkname); /* Copy token to name buffer */
-    atl__env->createWord->wnext = dict;	      /* Chain rest of dictionary to word */
-    dict = atl__env->createWord;		      /* Put word at head of dictionary */
+    atl__env->createWord->wnext = atl__env->dict;	      /* Chain rest of dictionary to word */
+    atl__env->dict = atl__env->createWord;		      /* Put word at head of dictionary */
 }
 
 #ifdef Keyhit
@@ -1925,7 +1916,7 @@ prim P_type(void) {
 // words -- list words
 //
 prim P_words(void) {
-    dictword *dw = dict;
+    dictword *dw = atl__env->dict;
 
     while (dw != NULL) {
 
@@ -2675,7 +2666,7 @@ prim P_abortq(void) {
 
 /* Mark most recent word immediate */
 prim P_immediate(void) {
-    dict->wname[0] |= IMMEDIATE;
+    atl__env->dict->wname[0] |= IMMEDIATE;
 }
 
 /* Set interpret state */
@@ -2879,7 +2870,7 @@ prim P_find(void) {
     }
 }
 
-#define DfOff(fld)  (((char *) &(dict->fld)) - ((char *) dict))
+#define DfOff(fld)  (((char *) &(atl__env->dict->fld)) - ((char *) atl__env->dict))
 
 // Find name field from compile addr
 //
@@ -2923,7 +2914,7 @@ prim P_fromlink(void) {
 
 #undef DfOff
 
-#define DfTran(from,to) (((char *) &(dict->to)) - ((char *) &(dict->from)))
+#define DfTran(from,to) (((char *) &(atl__env->dict->to)) - ((char *) &(atl__env->dict->from)))
 
 /* Get from name field to link */
 prim P_nametolink(void) {
@@ -2933,8 +2924,8 @@ prim P_nametolink(void) {
     /*
      S0 -= DfTran(wnext, wname);
      */
-    from = (char *) &(dict->wnext);
-    to = (char *) &(dict->wname);
+    from = (char *) &(atl__env->dict->wnext);
+    to = (char *) &(atl__env->dict->wname);
     S0 -= (to - from);
 }
 
@@ -2946,8 +2937,8 @@ prim P_linktoname(void) {
     /*
      S0 += DfTran(wnext, wname);
      */
-    from = (char *) &(dict->wnext);
-    to = (char *) &(dict->wname);
+    from = (char *) &(atl__env->dict->wnext);
+    to = (char *) &(atl__env->dict->wname);
     S0 += (to - from);
 }
 
@@ -3015,7 +3006,7 @@ prim P_walkback(void) {
 #ifdef WORDSUSED
 /* List words used by program */
 prim P_wordsused(void) {
-    dictword *dw = dict;
+    dictword *dw = atl__env->dict;
 
     while (dw != NULL) {
         if (*(dw->wname) & WORDUSED) {
@@ -3033,7 +3024,7 @@ prim P_wordsused(void) {
 
 /* List words not used by program */
 prim P_wordsunused(void) {
-    dictword *dw = dict;
+    dictword *dw = atl__env->dict;
 
     while (dw != NULL) {
         if (!(*(dw->wname) & WORDUSED)) {
@@ -3415,8 +3406,8 @@ Exported void atl_primdef(struct primfcn *pt) {
 
     nw = (dictword *) alloc((unsigned int) (n * sizeof(dictword)));
 
-    nw[n - 1].wnext = dict;
-    dict = nw;
+    nw[n - 1].wnext = atl__env->dict;
+    atl__env->dict = nw;
     for (i = 0; i < n; i++) {
         nw->wname = pt->pname;
 #ifdef WORDSUSED
@@ -3579,9 +3570,9 @@ static void exword(dictword *wp) {
  given by the atl_... cells.  */
 
 void atl_init(void) {
-    if (dict == NULL) {
+    if (atl__env->dict == NULL) {
         atl_primdef(primt);	      /* Define primitive words */
-        atl__env->dictFirstProtectedEntry = dict;	      /* Set protected mark in dictionary */
+        atl__env->dictFirstProtectedEntry = atl__env->dict;	      /* Set protected mark in dictionary */
 
         /* Look up compiler-referenced words in the new dictionary and
          save their compile addresses in static variables. */
@@ -3611,8 +3602,7 @@ void atl_init(void) {
 #endif
         atl__env->stkTop = stack + atl__env->stkLength;
         if (atl__env->rstack == NULL) {	      /* Allocate return stack if needed */
-            atl__env->rstack = (dictword ***)
-            alloc(((unsigned int) atl__env->rsLength) * sizeof(dictword **));
+            atl__env->rstack = (dictword ***) alloc(((unsigned int) atl__env->rsLength) * sizeof(dictword **));
         }
         atl__env->rs = atl__env->rsBottom = atl__env->rstack;
 #ifdef MEMSTAT
@@ -3691,7 +3681,7 @@ void atl_init(void) {
             }
         }
 #endif /* FILEIO */
-        atl__env->dictFirstProtectedEntry = dict;	      /* Protect all standard words */
+        atl__env->dictFirstProtectedEntry = atl__env->dict; // protect all standard words
     }
 }
 
@@ -3782,7 +3772,7 @@ void atl_mark(atl_statemark *mp) {
     mp->mstack = stk;		      /* Save stack position */
     mp->mheap = atl__env->heapAllocPtr;		      /* Save heap allocation marker */
     mp->mrstack = atl__env->rs; 	      /* Set return stack pointer */
-    mp->mdict = dict;		      /* Save last item in dictionary */
+    mp->mdict = atl__env->dict;		      /* Save last item in dictionary */
 }
 
 /*  ATL_UNWIND	--  Restore system state to previously saved state.  */
@@ -3806,9 +3796,9 @@ void atl_unwind(atl_statemark *mp) {
      buffers attached to the items allocated after the mark was
      made. */
 
-    while (dict != NULL && dict != atl__env->dictFirstProtectedEntry && dict != mp->mdict) {
-        free(dict->wname);	      /* Release name string for item */
-        dict = dict->wnext;	      /* Link to previous item */
+    while (atl__env->dict != NULL && atl__env->dict != atl__env->dictFirstProtectedEntry && atl__env->dict != mp->mdict) {
+        free(atl__env->dict->wname);	      /* Release name string for item */
+        atl__env->dict = atl__env->dict->wnext;	      /* Link to previous item */
     }
 }
 
@@ -3938,7 +3928,7 @@ int atl_eval(char *sp) {
     // currently operative.
 
 #ifdef PROLOGUE
-    if (dict == NULL) {
+    if (atl__env->dict == NULL) {
         if (atl_prologue(sp)) {
             return evalstat;
         }
@@ -3955,7 +3945,7 @@ int atl_eval(char *sp) {
                     forgetpend = atlFalse;
                     ucase(tokbuf);
                     if ((di = lookup(tokbuf)) != NULL) {
-                        dictword *dw = dict;
+                        dictword *dw = atl__env->dict;
 
                         // Pass 1.  Rip through the dictionary to make sure
                         // this word is not past the marker that
@@ -3983,11 +3973,11 @@ int atl_eval(char *sp) {
 
                         if (di != NULL) {
                             do {
-                                dw = dict;
+                                dw = atl__env->dict;
                                 if (dw->wname != NULL) {
                                     free(dw->wname);
                                 }
-                                dict = dw->wnext;
+                                atl__env->dict = dw->wnext;
                             } while (dw != di);
                             // Finally, back the heap allocation pointer
                             // up to the start of the last item forgotten.
