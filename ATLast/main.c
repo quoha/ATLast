@@ -265,19 +265,19 @@ void rstakunder(void);
 
 //  Stack access definitions
 
-#define S0      stk[-1]             // Top of stack
-#define S1      stk[-2]             // Next on stack
-#define S2      stk[-3]             // Third on stack
-#define S3      stk[-4]             // Fourth on stack
-#define S4      stk[-5]             // Fifth on stack
-#define S5      stk[-6]             // Sixth on stack
-#define Pop     stk--               // Pop the top item off the stack
-#define Pop2    stk -= 2            // Pop two items off the stack
-#define Npop(n) stk -= (n)          // Pop N items off the stack
-#define Push    *stk++              // Push item onto stack
+#define S0      atl__env->stk[-1]             // Top of stack
+#define S1      atl__env->stk[-2]             // Next on stack
+#define S2      atl__env->stk[-3]             // Third on stack
+#define S3      atl__env->stk[-4]             // Fourth on stack
+#define S4      atl__env->stk[-5]             // Fifth on stack
+#define S5      atl__env->stk[-6]             // Sixth on stack
+#define Pop     atl__env->stk--               // Pop the top item off the stack
+#define Pop2    atl__env->stk -= 2            // Pop two items off the stack
+#define Npop(n) atl__env->stk -= (n)          // Pop N items off the stack
+#define Push    *atl__env->stk++              // Push item onto stack
 
 #ifdef MEMSTAT
-#define Mss(n) if ((stk+(n))>atl__env->stkMaxExtent) atl__env->stkMaxExtent = stk+(n);
+#define Mss(n) if ((atl__env->stk+(n))>atl__env->stkMaxExtent) atl__env->stkMaxExtent = atl__env->stk+(n);
 #define Msr(n) if ((atl__env->rs+(n))>atl__env->rsMaxExtent) atl__env->rsMaxExtent = atl__env->rs+(n);
 #define Msh(n) if ((atl__env->heapAllocPtr+(n))>atl__env->heapMaxExtent) atl__env->heapMaxExtent = atl__env->heapAllocPtr+(n);
 #else
@@ -291,8 +291,8 @@ void rstakunder(void);
 #   define So(n)
 #else
 #   define Memerrs
-#   define Sl(x) if ((stk-stack)<(x)) {stakunder(); return Memerrs;}
-#   define So(n) Mss(n) if ((stk+(n))>atl__env->stkTop) {stakover(); return Memerrs;}
+#   define Sl(x) if ((atl__env->stk-stack)<(x)) {stakunder(); return Memerrs;}
+#   define So(n) Mss(n) if ((atl__env->stk+(n))>atl__env->stkTop) {stakover(); return Memerrs;}
 #endif
 
 /*  Return stack access definitions  */
@@ -327,8 +327,8 @@ void rstakunder(void);
 /*  Real number definitions (used only if REAL is configured).	*/
 
 #define Realsize (sizeof(atl_real)/sizeof(stackitem)) /* Stack cells / real */
-#define Realpop  stk -= Realsize      /* Pop real from stack */
-#define Realpop2 stk -= (2 * Realsize) /* Pop two reals from stack */
+#define Realpop  atl__env->stk -= Realsize      /* Pop real from stack */
+#define Realpop2 atl__env->stk -= (2 * Realsize) /* Pop two reals from stack */
 
 #ifdef ALIGNMENT
 #   define REAL0        *((atl_real *) memcpy((char *) &rbuf0, (char *) &S1, sizeof(atl_real)))
@@ -395,6 +395,7 @@ struct atlenv {
     dictword ***rsBottom;               // return stack bottom
     dictword ***rsMaxExtent;            // return stack maximum excursion
     dictword ***rsTop;                  // return stack top
+    stackitem  *stk;                    // stack pointer
     stackitem  *stkBottom;              // pointer to stack bottom
     stackitem  *stkMaxExtent;           // stack maximum excursion
     stackitem  *stkTop;                 // pointer to stack top
@@ -409,7 +410,7 @@ struct atlenv {
     // TODO: move these
 
     stackitem  *stack;
-    stackitem  *stk;
+
 
     // real temporaries for alignment
     atl_real    rbuf0;
@@ -587,7 +588,6 @@ atlenv *atl__NewInterpreter(void) {
 
 // TODO: move these
 Exported stackitem *stack = NULL;   /* Evaluation stack */
-Exported stackitem *stk;            /* Stack pointer */
 
 
 #ifdef FILEIO
@@ -937,10 +937,10 @@ void atl_memstat(void) {
     fprintf(stderr, "  Memory Area     usage     used    allocated   in use \n");
 
     fprintf(stderr, "   %-12s %6ld    %6ld    %6ld       %3ld\n", "Stack",
-            ((long) (stk - stack)),
+            ((long) (atl__env->stk - stack)),
             ((long) (atl__env->stkMaxExtent - stack)),
             atl__env->stkLength,
-            (100L * (stk - stack)) / atl__env->stkLength);
+            (100L * (atl__env->stk - stack)) / atl__env->stkLength);
     fprintf(stderr, "   %-12s %6ld    %6ld    %6ld       %3ld\n", "Return stack",
             ((long) (atl__env->rs - atl__env->rstack)),
             ((long) (atl__env->rsMaxExtent - atl__env->rstack)),
@@ -1755,7 +1755,7 @@ prim P_float(void) {
     Sl(1)
     So(Realsize - 1);
     r = S0;
-    stk += Realsize - 1;
+    atl__env->stk += Realsize - 1;
     SREAL0(r);
 }
 
@@ -1875,10 +1875,10 @@ prim P_dots(void) {
     stackitem *tsp;
 
     fprintf(stderr, "stack: ");
-    if (stk == atl__env->stkBottom) {
+    if (atl__env->stk == atl__env->stkBottom) {
         fprintf(stderr, "empty.");
     } else {
-        for (tsp = stack; tsp < stk; tsp++) {
+        for (tsp = stack; tsp < atl__env->stk; tsp++) {
             if (base == 16) {
                 fprintf(stderr, "%lX ", *tsp);
             } else {
@@ -2112,7 +2112,7 @@ prim P_evaluate(void) {
 
 /* Push stack depth */
 prim P_depth(void) {
-    stackitem s = stk - stack;
+    stackitem s = atl__env->stk - stack;
 
     So(1);
     Push = s;
@@ -2120,7 +2120,7 @@ prim P_depth(void) {
 
 /* Clear stack */
 prim P_clear(void) {
-    stk = stack;
+    atl__env->stk = stack;
 }
 
 /* Duplicate top of stack */
@@ -2162,7 +2162,7 @@ prim P_over(void) {
 /* Copy indexed item from stack */
 prim P_pick(void) {
     Sl(2);
-    S0 = stk[-(2 + S0)];
+    S0 = atl__env->stk[-(2 + S0)];
 }
 
 /* Rotate 3 top stack items */
@@ -2195,9 +2195,9 @@ prim P_roll(void) {
     i = S0;
     Pop;
     Sl(i + 1);
-    t = stk[-(i + 1)];
+    t = atl__env->stk[-(i + 1)];
     for (j = -(i + 1); j < -1; j++)
-        stk[j] = stk[j + 1];
+        atl__env->stk[j] = atl__env->stk[j + 1];
     S0 = t;
 }
 
@@ -2243,7 +2243,7 @@ prim P_2dup(void) {
 /* Drop top two items from stack */
 prim P_2drop(void) {
     Sl(2);
-    stk -= 2;
+    atl__env->stk -= 2;
 }
 
 /* Swap top two double items on stack */
@@ -2518,7 +2518,7 @@ prim P_xdo(void) {
     Rpush = (rstackitem) S1;	      /* Push loop limit on return stack */
     Rpush = (rstackitem) S0;	      /* Iteration variable initial value to
                                        return stack */
-    stk -= 2;
+    atl__env->stk -= 2;
 }
 
 /* Compile ?DO */
@@ -2543,7 +2543,7 @@ prim P_xqdo(void) {
         Rpush = (rstackitem) S0;      /* Iteration variable initial value to
                                        return stack */
     }
-    stk -= 2;
+    atl__env->stk -= 2;
 }
 
 /* Compile LOOP */
@@ -3596,7 +3596,7 @@ void atl_init(void) {
             stack = (stackitem *)
             alloc(((unsigned int) atl__env->stkLength) * sizeof(stackitem));
         }
-        stk = atl__env->stkBottom = stack;
+        atl__env->stk = atl__env->stkBottom = stack;
 #ifdef MEMSTAT
         atl__env->stkMaxExtent = stack;
 #endif
@@ -3769,7 +3769,7 @@ dictword *atl_vardef(char *name, int size) {
 /*  ATL_MARK  --  Mark current state of the system.  */
 
 void atl_mark(atl_statemark *mp) {
-    mp->mstack = stk;		      /* Save stack position */
+    mp->mstack = atl__env->stk;		      /* Save stack position */
     mp->mheap = atl__env->heapAllocPtr;		      /* Save heap allocation marker */
     mp->mrstack = atl__env->rs; 	      /* Set return stack pointer */
     mp->mdict = atl__env->dict;		      /* Save last item in dictionary */
@@ -3787,7 +3787,7 @@ void atl_unwind(atl_statemark *mp) {
     if (mp->mdict == NULL)	      /* Was mark made before atl_init ? */
         return; 		      /* Yes.  Cannot unwind past init */
 
-    stk = mp->mstack;		      /* Roll back stack allocation */
+    atl__env->stk = mp->mstack;		      /* Roll back stack allocation */
     atl__env->heapAllocPtr = mp->mheap;		      /* Reset heap state */
     atl__env->rs = mp->mrstack; 	      /* Reset the return stack */
 
