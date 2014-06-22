@@ -14,62 +14,22 @@
 // Main driver program for interactive ATLAST
 //
 
+#include "atlcfg.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <ctype.h>
 #include <string.h>
 #include <signal.h>
+#include <unistd.h>
 
-#include "atlcfg.h"
-
-//#include "atldef.h"
-//
-//  ATLast/atldef.h
-//
-//  Created by Michael Henderson on 6/19/14.
-//  Copyright (c) 2014 Michael D Henderson. All rights reserved.
-//  Portions Copyright (c) 1990 by John Walker and placed into the public domain.
-//
-// A T L A S T
-//
-// Autodesk Threaded Language Application System Toolkit
-//
-//  ATLast/atldef.h
-//
-//  Designed and implemented in January of 1990 by John Walker.
-//  Original at https://www.fourmilab.ch/atlast/atlast.html
-//
-//  Created by Michael Henderson on 6/18/14.
-//  Changes Copyright (c) 2014 Michael D Henderson. All rights reserved.
-//
-// Definitions for components of ATLAST
-//
-// This  file	contains the definitions for modules within the ATLAST
-// language system itself.  Definitions used by programs that link to
-// ATLAST   are   in	ATLAST.H,  which  is  included	by  this  file
-// automatically.
-//
-
-#ifndef ATLast_atldef_h
-#define ATLast_atldef_h
-
-//#include "atltypes.h"
-// A T L A S T
-//
-// Autodesk Threaded Language Application System Toolkit
-//
-//  ATLast/atltypes.h
-//
-//  Derived from code designed and implemented 1990 by John Walker
-//  and placed into the public domain by him.
-//  Original at https://www.fourmilab.ch/atlast/atlast.html
-//
-//  Created by Michael Henderson on 6/19/14.
-//  Changes Copyright (c) 2014 Michael D Henderson. All rights reserved.
-//
-
-#ifndef ATLast_atltypes_h
-#define ATLast_atltypes_h
+#ifdef ALIGNMENT
+#ifdef __TURBOC__
+#include <mem.h>
+#else
+#include <memory.h>
+#endif
+#endif
 
 // Data types
 
@@ -109,6 +69,99 @@ struct primfcn {
     codeptr pcode;
 };
 
+// atlenv is the state of the interpreter/compiler. users are expected
+// to create and initialize the structure, then pass it to all calls
+// to the library. this slows down the overall speed but allows for
+// multiple intepreters in a single environment. if you're keen on the
+// fastest possible, please take a look at the original program. is is
+// available at the link given in the COPYING file.
+//
+typedef struct atlenv atlenv;
+struct atlenv {
+    // public -- visible to calling programs
+    atl_int allowRedefinition;          // Allow redefinition without issuing the "not unique" message.
+    atl_int enableTrace;                // Tracing if true
+    atl_int enableWalkback;             // Walkback enabled if true
+    atl_int heapLength;                 // Heap length
+    atl_int isIgnoringComment;          // Currently ignoring a comment
+    atl_int lengthTempStringBuffer;     // Temporary string buffer length
+    atl_int lineNumberLastLoadFailed;   // Line where last atl_load failed or zero if no error
+    atl_int numberOfTempStringBuffers;  // Number of temporary string buffers
+    atl_int rsLength;                   // Return stack length
+    atl_int stkLength;                  // Evaluation stack length
+
+    // private
+    dictword   *createWord;             //  address of word pending creation
+    long        currentNumberBase;      // number base
+    dictword   *currentWord;            // Current word being executed
+    dictword   *dict;                   // dictionary chain head
+    dictword   *dictFirstProtectedEntry;// first protected item in dictionary
+    int         evalStatus;             // evaluator status
+    stackitem  *heap;                   // allocation heap
+    stackitem  *heapAllocPtr;           // heap allocation pointer
+    stackitem  *heapBottom;             // bottom of heap (temp string buffer)
+    stackitem  *heapMaxExtent;          // heap maximum excursion
+    stackitem  *heapTop;                // top of heap
+    int         idxCurrTempStringBuffer;// index into current temp string buffer
+    char       *inputBuffer;            // current input buffer
+    dictword  **ip;                     // instruction pointer
+    int       (*nextToken)(char **cp);
+    dictword ***rstack;                 // return stack, root of allocated memory for the stack
+    dictword ***rs;                     // return stack pointer
+    dictword ***rsBottom;               // return stack bottom
+    dictword ***rsMaxExtent;            // return stack maximum excursion
+    dictword ***rsTop;                  // return stack top
+    stackitem  *stack;                  // evaluation stack, root of allocated memory for the stack
+    stackitem  *stk;                    // stack pointer
+    stackitem  *stkBottom;              // pointer to stack bottom
+    stackitem  *stkMaxExtent;           // stack maximum excursion
+    stackitem  *stkTop;                 // pointer to stack top
+    Boolean     tokPendingCompile;      // [COMPILE] pending
+    Boolean     tokPendingDefine;       // token definition pending
+    Boolean     tokPendingForget;       // forget pending
+    Boolean     tokPendingStringLiteral;// string literal anticipated
+    Boolean     tokPendingTickCompile;  // compile-time tick ['] pending
+    Boolean     tokPendingTickMark;     // take address of next word
+    dictword  **walkback;               // walkback trace buffer
+    dictword  **walkbackPointer;        // walkback trace pointer (stack trace?)
+
+    volatile Boolean asyncBreakReceived;// asynchronous break received
+
+    // TODO: rename these
+    char      **strbuf;                 // table of pointers to temp strings
+
+    // The following static cells save the compile addresses of words
+    // generated by the compiler.  They are looked up immediately after
+    // the dictionary is created.  This makes the compiler much faster
+    // since it doesn't have to look up internally-reference words, and,
+    // far more importantly, keeps it from being spoofed if a user redefines
+    // one of the words generated by the compiler.
+    stackitem s_abortq;
+    stackitem s_branch;
+    stackitem s_dotparen;
+    stackitem s_exit;
+    stackitem s_flit;
+    stackitem s_lit;
+    stackitem s_pxloop;
+    stackitem s_qbranch;
+    stackitem s_strlit;
+    stackitem s_xdo;
+    stackitem s_xloop;
+    stackitem s_xqdo;
+
+    // token processing variables
+    //
+    char        tokbuf[128];            // token buffer
+    long        tokint;                 // scanned integer
+    atl_real    tokreal;                // scanned real number
+
+    // real temporaries for alignment. needed if we have to maintain the
+    // alignment boundaries for floating/double numbers
+    //
+    atl_real    rbuf0;
+    atl_real    rbuf1;
+    atl_real    rbuf2;
+};
 
 // Functions called by exported extensions.
 //
@@ -120,41 +173,28 @@ dictword  *atl_lookup(char *name);
 void       atl_primdef(struct primfcn *pt);
 dictword  *atl_vardef(char *name, int size);
 
+//  Entry points
+void atl_break(void);
+int  atl_eval(char *sp);
+int  atl_load(FILE *fp);
+void atl_init(void);
+void atl_mark(atl_statemark *mp);
+void atl_memstat(void);
+void atl_unwind(atl_statemark *mp);
+
+void P_create(void);
+void P_dodoes(void);
+
+void stakover(void);
+void rstakover(void);
+void heapover(void);
+void badpointer(void);
+void stakunder(void);
+void rstakunder(void);
+
 // internal use functions
 //
 int atl__token(char **cp);
-
-#endif
-// end of ATLast/atltypes.h
-
-//#include "atlast.h"               // Define user linkage structures
-// A T L A S T
-//
-// Autodesk Threaded Language Application System Toolkit
-//
-//  ATLast/atlast.h
-//
-//  Derived from code designed and implemented 1990 by John Walker
-//  and placed into the public domain by him.
-//  Original at https://www.fourmilab.ch/atlast/atlast.html
-//
-//  Created by Michael Henderson on 6/19/14.
-//  Changes Copyright (c) 2014 Michael D Henderson. All rights reserved.
-//
-//  Program Linkage Definitions
-//
-//   This  module  contains  the  definitions  needed by programs that
-//   invoke the ATLAST system.	It does contain the  definitions  used
-//   internally   within  ATLAST  (which  might  create  conflicts  if
-//   included in calling programs).
-//
-
-#ifndef ATLast_atlast_h
-#define ATLast_atlast_h
-
-#include "atltypes.h"
-
-#include <stdio.h>
 
 // External symbols accessible by the calling program.
 
@@ -176,58 +216,8 @@ int atl__token(char **cp);
 #define ATL_DIVZERO     -13	      // Attempt to divide by zero
 #define ATL_APPLICATION -14	      // Application primitive atl_error()
 
-//  Entry points
-void atl_break(void);
-int  atl_eval(char *sp);
-int  atl_load(FILE *fp);
-void atl_init(void);
-void atl_mark(atl_statemark *mp);
-void atl_memstat(void);
-void atl_unwind(atl_statemark *mp);
-
-#endif
-// end of ATLast/atlast.h
-
-// Word flag bits
-
-#define IMMEDIATE   1		      // Word is immediate
-#define WORDUSED    2		      // Word used by program
-#define WORDHIDDEN  4		      // Word is hidden from lookup
-
-// Stack items occupied by a dictionary word definition
-#define Dictwordl ((sizeof(dictword)+(sizeof(stackitem)-1))/sizeof(stackitem))
-
-// Token types
-
-#define TokNull     0		      // Nothing scanned
-#define TokWord     1		      // Word stored in token name buffer
-#define TokInt	    2		      // Integer scanned
-#define TokReal     3		      // Real number scanned
-#define TokString   4		      // String scanned
-
-#ifdef EXPORT
-#   define Exported
-#   ifdef ALIGNMENT
-#   endif
-
-#   define FmodeR       1   // Read mode
-#   define FmodeW       2   // Write mode
-#   define FmodeB       4   // Binary file mode
-#   define FmodeCre     8   // Create new file
-
-void P_create(void);
-void P_dodoes(void);
-#endif // EXPORT
-
-void stakover(void);
-void rstakover(void);
-void heapover(void);
-void badpointer(void);
-void stakunder(void);
-void rstakunder(void);
-
 // If explicit alignment is not requested, enable it in any case for known CPU types that require alignment.
-
+//
 #ifndef ALIGNMENT
 #   ifdef sparc
 #       define ALIGNMENT
@@ -250,6 +240,31 @@ void rstakunder(void);
 #ifdef OS2			      // OS/2 requires binary file flag
 #   define FBmode
 #endif
+
+// Word flag bits
+
+#define IMMEDIATE   1		      // Word is immediate
+#define WORDUSED    2		      // Word used by program
+#define WORDHIDDEN  4		      // Word is hidden from lookup
+
+// Stack items occupied by a dictionary word definition
+#define Dictwordl ((sizeof(dictword)+(sizeof(stackitem)-1))/sizeof(stackitem))
+
+// Token types
+
+#define TokNull     0		      // Nothing scanned
+#define TokWord     1		      // Word stored in token name buffer
+#define TokInt	    2		      // Integer scanned
+#define TokReal     3		      // Real number scanned
+#define TokString   4		      // String scanned
+
+#ifdef EXPORT
+#   define Exported
+#   define FmodeR       1   // Read mode
+#   define FmodeW       2   // Write mode
+#   define FmodeB       4   // Binary file mode
+#   define FmodeCre     8   // Create new file
+#endif // EXPORT
 
 // stack access definitions
 //
@@ -339,100 +354,12 @@ void rstakunder(void);
 #define FileD(x)    ((FILE *) *(((stackitem *) (x)) + 1))
 #define Isopen(x)   if (FileD(x) == NULL) {fprintf(stderr, "\nfile not open\n");return;}
 
-#endif
-// end of ATLast/atldef.h
-
-
-
-
 //---------------------------------------------------------------------------------------------------------------
 //---------------------------------------------------------------------------------------------------------------
 
 static const atl_int atlFalsity = 0L;           // value for falsity
 static const atl_int atlTruth   = ~atlFalsity;  // value for truth
 
-typedef struct atlenv atlenv;
-struct atlenv {
-    // public -- visible to calling programs
-    atl_int allowRedefinition;          // Allow redefinition without issuing the "not unique" message.
-    atl_int enableTrace;                // Tracing if true
-    atl_int enableWalkback;             // Walkback enabled if true
-    atl_int heapLength;                 // Heap length
-    atl_int isIgnoringComment;          // Currently ignoring a comment
-    atl_int lengthTempStringBuffer;     // Temporary string buffer length
-    atl_int lineNumberLastLoadFailed;   // Line where last atl_load failed or zero if no error
-    atl_int numberOfTempStringBuffers;  // Number of temporary string buffers
-    atl_int rsLength;                   // Return stack length
-    atl_int stkLength;                  // Evaluation stack length
-
-    // private
-    dictword   *createWord;             //  address of word pending creation
-    long        currentNumberBase;      // number base
-    dictword   *currentWord;            // Current word being executed
-    dictword   *dict;                   // dictionary chain head
-    dictword   *dictFirstProtectedEntry;// first protected item in dictionary
-    int         evalStatus;             // evaluator status
-    stackitem  *heap;                   // allocation heap
-    stackitem  *heapAllocPtr;           // heap allocation pointer
-    stackitem  *heapBottom;             // bottom of heap (temp string buffer)
-    stackitem  *heapMaxExtent;          // heap maximum excursion
-    stackitem  *heapTop;                // top of heap
-    int         idxCurrTempStringBuffer;// index into current temp string buffer
-    char       *inputBuffer;            // current input buffer
-    dictword  **ip;                     // instruction pointer
-    int       (*nextToken)(char **cp);
-    dictword ***rstack;                 // return stack, root of allocated memory for the stack
-    dictword ***rs;                     // return stack pointer
-    dictword ***rsBottom;               // return stack bottom
-    dictword ***rsMaxExtent;            // return stack maximum excursion
-    dictword ***rsTop;                  // return stack top
-    stackitem  *stack;                  // evaluation stack, root of allocated memory for the stack
-    stackitem  *stk;                    // stack pointer
-    stackitem  *stkBottom;              // pointer to stack bottom
-    stackitem  *stkMaxExtent;           // stack maximum excursion
-    stackitem  *stkTop;                 // pointer to stack top
-    Boolean     tokPendingCompile;      // [COMPILE] pending
-    Boolean     tokPendingDefine;       // token definition pending
-    Boolean     tokPendingForget;       // forget pending
-    Boolean     tokPendingStringLiteral;// string literal anticipated
-    Boolean     tokPendingTickCompile;  // compile-time tick ['] pending
-    Boolean     tokPendingTickMark;     // take address of next word
-    dictword  **walkback;               // walkback trace buffer
-    dictword  **walkbackPointer;        // walkback trace pointer (stack trace?)
-
-    volatile Boolean asyncBreakReceived;// asynchronous break received
-
-    // TODO: rename these
-    char      **strbuf;                 // table of pointers to temp strings
-
-    char        tokbuf[128];            // token buffer
-    long        tokint;                 // scanned integer
-    atl_real    tokreal;                // scanned real number
-
-    // The following static cells save the compile addresses of words
-    // generated by the compiler.  They are looked up immediately after
-    // the dictionary is created.  This makes the compiler much faster
-    // since it doesn't have to look up internally-reference words, and,
-    // far more importantly, keeps it from being spoofed if a user redefines
-    // one of the words generated by the compiler.
-    stackitem s_abortq;
-    stackitem s_branch;
-    stackitem s_dotparen;
-    stackitem s_exit;
-    stackitem s_flit;
-    stackitem s_lit;
-    stackitem s_pxloop;
-    stackitem s_qbranch;
-    stackitem s_strlit;
-    stackitem s_xdo;
-    stackitem s_xloop;
-    stackitem s_xqdo;
-
-    // real temporaries for alignment
-    atl_real    rbuf0;
-    atl_real    rbuf1;
-    atl_real    rbuf2;
-};
 atlenv *atl__env = 0;
 
 atlenv *atl__NewInterpreter(void) {
@@ -487,8 +414,8 @@ atlenv *atl__NewInterpreter(void) {
     e->tokPendingStringLiteral  = atlFalse;
     e->tokPendingTickCompile    = atlFalse;
     e->tokPendingTickMark       = atlFalse;
-    e->walkback         = 0;
-    e->walkbackPointer  = 0;
+    e->walkback                 = 0;
+    e->walkbackPointer          = 0;
 
     // assign default public values
     e->allowRedefinition            = atlTruth;
@@ -526,20 +453,6 @@ atlenv *atl__NewInterpreter(void) {
 // Main Interpreter and Compiler
 //
 //
-
-#include <stdio.h>
-#include <ctype.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-
-#ifdef ALIGNMENT
-#ifdef __TURBOC__
-#include <mem.h>
-#else
-#include <memory.h>
-#endif
-#endif
 
 // Subpackage configuration.  If INDIVIDUALLY is defined, the inclusion
 // of subpackages is based on whether their compile-time tags are
