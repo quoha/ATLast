@@ -377,7 +377,6 @@ struct atlenv {
     atl_int rsLength;                   // Return stack length
     atl_int stkLength;                  // Evaluation stack length
 
-
     // private
     dictword   *createWord;             //  address of word pending creation
     dictword   *currentWord;            // Current word being executed
@@ -412,8 +411,6 @@ struct atlenv {
     atl_real    rbuf0;
     atl_real    rbuf1;
     atl_real    rbuf2;
-
-
 };
 atlenv *atl__env = 0;
 
