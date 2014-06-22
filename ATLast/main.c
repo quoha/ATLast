@@ -379,9 +379,11 @@ struct atlenv {
 
     // private
     dictword   *createWord;             //  address of word pending creation
+    long        currentNumberBase;      // number base
     dictword   *currentWord;            // Current word being executed
     dictword   *dict;                   // dictionary chain head
     dictword   *dictFirstProtectedEntry;// first protected item in dictionary
+    int         evalStatus;             // evaluator status
     stackitem  *heap;                   // allocation heap
     stackitem  *heapAllocPtr;           // heap allocation pointer
     stackitem  *heapBottom;             // bottom of heap (temp string buffer)
@@ -401,6 +403,12 @@ struct atlenv {
     stackitem  *stkBottom;              // pointer to stack bottom
     stackitem  *stkMaxExtent;           // stack maximum excursion
     stackitem  *stkTop;                 // pointer to stack top
+    Boolean     tokPendingCompile;      // [COMPILE] pending
+    Boolean     tokPendingDefine;       // token definition pending
+    Boolean     tokPendingForget;       // forget pending
+    Boolean     tokPendingStringLiteral;// string literal anticipated
+    Boolean     tokPendingTickCompile;  // compile-time tick ['] pending
+    Boolean     tokPendingTickMark;     // take address of next word
     dictword  **walkback;               // walkback trace buffer
     dictword  **walkbackPointer;        // walkback trace pointer (stack trace?)
 
@@ -421,10 +429,12 @@ atlenv *atl__NewInterpreter(void) {
     }
 
     // assign default private values (TODO: allocate memory)
+    e->currentNumberBase        = 10;
     e->createWord       = 0;
     e->currentWord      = 0;
     e->dict             = 0;
     e->dictFirstProtectedEntry  = 0;
+    e->evalStatus       = ATL_SNORM;
     e->heap             = 0;
     e->heapAllocPtr     = 0;
     e->heapBottom       = 0;
@@ -444,10 +454,15 @@ atlenv *atl__NewInterpreter(void) {
     e->stkBottom        = 0;
     e->stkMaxExtent     = 0;
     e->stkTop           = 0;
+    e->strbuf           = 0;
+    e->tokPendingCompile        = atlFalse;
+    e->tokPendingDefine         = atlFalse;
+    e->tokPendingForget         = atlFalse;
+    e->tokPendingStringLiteral  = atlFalse;
+    e->tokPendingTickCompile    = atlFalse;
+    e->tokPendingTickMark       = atlFalse;
     e->walkback         = 0;
     e->walkbackPointer  = 0;
-
-    e->strbuf           = 0;
 
     // assign default public values
     e->allowRedefinition            = atlTruth;
@@ -603,14 +618,6 @@ static long tokint;		      /* Scanned integer */
         Exported atl_real rbuf0, rbuf1, rbuf2; /* Real temporary buffers */
 #   endif
 #endif
-static long base = 10;		      /* Number base */
-static int evalstat = ATL_SNORM;      /* Evaluator status */
-static Boolean defpend = atlFalse;       /* Token definition pending */
-static Boolean forgetpend = atlFalse;    /* Forget pending */
-static Boolean tickpend = atlFalse;      /* Take address of next word */
-static Boolean ctickpend = atlFalse;     /* Compile-time tick ['] pending */
-static Boolean cbrackpend = atlFalse;    /* [COMPILE] pending */
-static Boolean stringlit = atlFalse;     /* String literal anticipated */
 
 // TODO: move these
 #ifdef BREAK
@@ -768,7 +775,7 @@ int atl__token(char **cp) {
 #ifdef MEMMESSAGE
                 fprintf(stderr, "\nrunaway string: %s\n", tokbuf);
 #endif
-                evalstat = ATL_RUNSTRING;
+                atl__env->evalStatus = ATL_RUNSTRING;
                 return TokNull;
             }
             return TokString;
@@ -1315,7 +1322,7 @@ prim P_var(void) {
 }
 
 Exported void P_create(void) {	      /* Create new word */
-    defpend = atlTrue;		      /* Set definition pending */
+    atl__env->tokPendingDefine = atlTrue;		      /* Set definition pending */
     Ho(Dictwordl);
     atl__env->createWord = (dictword *) atl__env->heapAllocPtr;   /* Develop address of word */
     atl__env->createWord->wname = NULL;	      /* Clear pointer to name string */
@@ -1325,7 +1332,7 @@ Exported void P_create(void) {	      /* Create new word */
 
 /* Forget word */
 prim P_forget(void) {
-    forgetpend = atlTrue;		      /* Mark forget pending */
+    atl__env->tokPendingForget = atlTrue;		      /* Mark forget pending */
 }
 
 /* Declare variable */
@@ -1825,7 +1832,7 @@ prim P_tan(void) {
 //
 prim P_dot(void) {
     Sl(1);
-    if (base == 16) {
+    if (atl__env->currentNumberBase == 16) {
         fprintf(stderr, "%lX ", S0);
     } else {
         fprintf(stderr, "%ld ", S0);
@@ -1838,7 +1845,7 @@ prim P_dot(void) {
 prim P_question(void) {
     Sl(1);
     Hpc(S0);
-    if (base == 16) {
+    if (atl__env->currentNumberBase == 16) {
         fprintf(stderr, "%lX ", *((stackitem *) S0));
     } else {
         fprintf(stderr, "%ld ", *((stackitem *) S0));
@@ -1862,7 +1869,7 @@ prim P_dots(void) {
         fprintf(stderr, "empty.");
     } else {
         for (tsp = atl__env->stack; tsp < atl__env->stk; tsp++) {
-            if (base == 16) {
+            if (atl__env->currentNumberBase == 16) {
                 fprintf(stderr, "%lX ", *tsp);
             } else {
                 fprintf(stderr, "%ld ", *tsp);
@@ -1874,14 +1881,14 @@ prim P_dots(void) {
 /* Print literal string that follows */
 prim P_dotquote(void) {
     Compiling;
-    stringlit = atlTrue;		      /* Set string literal expected */
+    atl__env->tokPendingStringLiteral = atlTrue;		      /* Set string literal expected */
     Compconst(s_dotparen);	      /* Compile .( word */
 }
 
 /* Print literal string that follows */
 prim P_dotparen(void) {
     if (atl__env->ip == NULL) {		      /* If interpreting */
-        stringlit = atlTrue;	      /* Set to print next string constant */
+        atl__env->tokPendingStringLiteral = atlTrue;	      /* Set to print next string constant */
     } else {			      /* Otherwise, */
         fprintf(stderr, "%s", ((char *) atl__env->ip) + 1); /* print string literal in in-line code. */
         Skipstring;		      /* And advance IP past it */
@@ -2631,7 +2638,7 @@ prim P_abort(void) {
 /* Abort, printing message */
 prim P_abortq(void) {
     if (state) {
-        stringlit = atlTrue;	      /* Set string literal expected */
+        atl__env->tokPendingStringLiteral = atlTrue;	      /* Set string literal expected */
         Compconst(s_abortq);	      /* Compile ourselves */
     } else {
         fprintf(stderr, "%s", (char *) atl__env->ip);  // otherwise, print string literal in in-line code.
@@ -2641,7 +2648,7 @@ prim P_abortq(void) {
         P_abort();		      /* Abort */
         // reset all interpretation state
         atl__env->isIgnoringComment = state = atlFalsity;
-        forgetpend = defpend = stringlit = tickpend = ctickpend = atlFalse;
+        atl__env->tokPendingForget = atl__env->tokPendingDefine = atl__env->tokPendingStringLiteral = atl__env->tokPendingTickMark = atl__env->tokPendingTickCompile = atlFalse;
     }
 }
 
@@ -2791,7 +2798,7 @@ prim P_tick(void) {
         // token to be pushed when it's supplied on a subsequent input
         // line.
         if (atl__env->ip == NULL) {
-            tickpend = atlTrue;	      // Set tick pending
+            atl__env->tokPendingTickMark = atlTrue;	      // Set tick pending
         } else {
             fprintf(stderr, "\nword requested by ` not on same input line.\n");
             P_abort();
@@ -2802,7 +2809,7 @@ prim P_tick(void) {
 /* Compile in-line code address */
 prim P_bracktick(void) {
     Compiling;
-    ctickpend = atlTrue;		      /* Force literal treatment of next
+    atl__env->tokPendingTickCompile = atlTrue;		      /* Force literal treatment of next
                                    word in compile stream */
 }
 
@@ -3028,7 +3035,7 @@ prim P_wordsunused(void) {
 /* Force compilation of immediate word */
 prim P_brackcompile(void) {
     Compiling;
-    cbrackpend = atlTrue;		      /* Set [COMPILE] pending */
+    atl__env->tokPendingCompile = atlTrue;		      /* Set [COMPILE] pending */
 }
 
 /* Compile top of stack as literal */
@@ -3438,14 +3445,14 @@ static void trouble(char *kind) {
     P_abort();			      /* Abort */
     // reset all interpretation state */
     atl__env->isIgnoringComment = state = atlFalsity;
-    forgetpend = defpend = stringlit = tickpend = ctickpend = atlFalse;
+    atl__env->tokPendingForget = atl__env->tokPendingDefine = atl__env->tokPendingStringLiteral = atl__env->tokPendingTickMark = atl__env->tokPendingTickCompile = atlFalse;
 }
 
 /*  ATL_ERROR  --  Handle error detected by user-defined primitive.  */
 
 Exported void atl_error(char *kind) {
     trouble(kind);
-    evalstat = ATL_APPLICATION;       /* Signify application-detected error */
+    atl__env->evalStatus = ATL_APPLICATION;       /* Signify application-detected error */
 }
 
 #ifndef NOMEMCHECK
@@ -3454,28 +3461,28 @@ Exported void atl_error(char *kind) {
 
 Exported void stakover(void) {
     trouble("Stack overflow");
-    evalstat = ATL_STACKOVER;
+    atl__env->evalStatus = ATL_STACKOVER;
 }
 
 /*  STAKUNDER  --  Recover from stack underflow.  */
 
 Exported void stakunder(void) {
     trouble("Stack underflow");
-    evalstat = ATL_STACKUNDER;
+    atl__env->evalStatus = ATL_STACKUNDER;
 }
 
 /*  RSTAKOVER  --  Recover from return stack overflow.	*/
 
 Exported void rstakover(void) {
     trouble("Return stack overflow");
-    evalstat = ATL_RSTACKOVER;
+    atl__env->evalStatus = ATL_RSTACKOVER;
 }
 
 /*  RSTAKUNDER	--  Recover from return stack underflow.  */
 
 Exported void rstakunder(void) {
     trouble("Return stack underflow");
-    evalstat = ATL_RSTACKUNDER;
+    atl__env->evalStatus = ATL_RSTACKUNDER;
 }
 
 /*  HEAPOVER  --  Recover from heap overflow.  Note that a heap
@@ -3485,28 +3492,28 @@ Exported void rstakunder(void) {
 
 Exported void heapover(void) {
     trouble("Heap overflow");
-    evalstat = ATL_HEAPOVER;
+    atl__env->evalStatus = ATL_HEAPOVER;
 }
 
 /*  BADPOINTER	--  Abort if bad pointer reference detected.  */
 
 Exported void badpointer(void) {
     trouble("Bad pointer");
-    evalstat = ATL_BADPOINTER;
+    atl__env->evalStatus = ATL_BADPOINTER;
 }
 
 /*  NOTCOMP  --  Compiler word used outside definition.  */
 
 static void notcomp(void) {
     trouble("Compiler word outside definition");
-    evalstat = ATL_NOTINDEF;
+    atl__env->evalStatus = ATL_NOTINDEF;
 }
 
 /*  DIVZERO  --  Attempt to divide by zero.  */
 
 static void divzero(void) {
     trouble("Divide by zero");
-    evalstat = ATL_DIVZERO;
+    atl__env->evalStatus = ATL_DIVZERO;
 }
 
 #endif /* !NOMEMCHECK */
@@ -3528,7 +3535,7 @@ static void exword(dictword *wp) {
 #endif
         if (broken) {		      /* Did we receive a break signal */
             trouble("Break signal");
-            evalstat = ATL_BREAK;
+            atl__env->evalStatus = ATL_BREAK;
             break;
         }
 #endif /* BREAK */
@@ -3689,27 +3696,27 @@ stackitem *atl_body(dictword *dw) {
  preserved. */
 
 int atl_exec(dictword *dw) {
-    int sestat = evalstat, restat;
+    int sestat = atl__env->evalStatus;
 
-    evalstat = ATL_SNORM;
+    atl__env->evalStatus = ATL_SNORM;
 #ifdef BREAK
     broken = atlFalse;		      /* Reset break received */
 #endif
 #undef Memerrs
-#define Memerrs evalstat
+#define Memerrs atl__env->evalStatus
     Rso(1);
     Rpush = atl__env->ip; 		      /* Push instruction pointer */
     atl__env->ip = NULL;			      /* Keep exword from running away */
     exword(dw);
-    if (evalstat == ATL_SNORM) {      /* If word ran to completion */
+    if (atl__env->evalStatus == ATL_SNORM) {      /* If word ran to completion */
         Rsl(1);
         atl__env->ip = R0;		      /* Pop the return stack */
         Rpop;
     }
 #undef Memerrs
 #define Memerrs
-    restat = evalstat;
-    evalstat = sestat;
+    int restat = atl__env->evalStatus;
+    atl__env->evalStatus = sestat;
     return restat;
 }
 
@@ -3727,11 +3734,11 @@ dictword *atl_vardef(char *name, int size) {
 
 #undef Memerrs
 #define Memerrs NULL
-    evalstat = ATL_SNORM;
+    atl__env->evalStatus = ATL_SNORM;
     Ho(Dictwordl + isize);
 #undef Memerrs
 #define Memerrs
-    if (evalstat != ATL_SNORM)	      /* Did the heap overflow */
+    if (atl__env->evalStatus != ATL_SNORM)	      /* Did the heap overflow */
         return NULL;		      /* Yes.  Return NULL */
     atl__env->createWord = (dictword *) atl__env->heapAllocPtr;   /* Develop address of word */
     atl__env->createWord->wcode = P_var;	      /* Store default code */
@@ -3896,9 +3903,9 @@ int atl_eval(char *sp) {
     int i;
 
 #undef  Memerrs
-#define Memerrs evalstat
+#define Memerrs atl__env->evalStatus
     atl__env->inputBuffer = sp;
-    evalstat = ATL_SNORM;	      // Set normal evaluation status
+    atl__env->evalStatus = ATL_SNORM;	      // Set normal evaluation status
 
 #ifdef BREAK
     broken = atlFalse;		      // Reset asynchronous break
@@ -3912,19 +3919,19 @@ int atl_eval(char *sp) {
 #ifdef PROLOGUE
     if (atl__env->dict == NULL) {
         if (atl_prologue(sp)) {
-            return evalstat;
+            return atl__env->evalStatus;
         }
         atl_init();
     }
 #endif // PROLOGUE
 
-    while ((evalstat == ATL_SNORM) && (i = atl__env->nextToken(&(atl__env->inputBuffer))) != TokNull) {
+    while ((atl__env->evalStatus == ATL_SNORM) && (i = atl__env->nextToken(&(atl__env->inputBuffer))) != TokNull) {
         dictword *di;
 
         switch (i) {
             case TokWord:
-                if (forgetpend) {
-                    forgetpend = atlFalse;
+                if (atl__env->tokPendingForget) {
+                    atl__env->tokPendingForget = atlFalse;
                     ucase(tokbuf);
                     if ((di = lookup(tokbuf)) != NULL) {
                         dictword *dw = atl__env->dict;
@@ -3938,7 +3945,7 @@ int atl_eval(char *sp) {
 #ifdef MEMMESSAGE
                                 fprintf(stderr, "\nforget protected.\n");
 #endif
-                                evalstat = ATL_FORGETPROT;
+                                atl__env->evalStatus = ATL_FORGETPROT;
                                 di = NULL;
                             }
                             if (strcmp(dw->wname + 1, tokbuf) == 0) {
@@ -3981,10 +3988,10 @@ int atl_eval(char *sp) {
 #ifdef MEMMESSAGE
                         fprintf(stderr, " '%s' undefined ", tokbuf);
 #endif
-                        evalstat = ATL_UNDEFINED;
+                        atl__env->evalStatus = ATL_UNDEFINED;
                     }
-                } else if (tickpend) {
-                    tickpend = atlFalse;
+                } else if (atl__env->tokPendingTickMark) {
+                    atl__env->tokPendingTickMark = atlFalse;
                     ucase(tokbuf);
                     if ((di = lookup(tokbuf)) != NULL) {
                         So(1);
@@ -3993,13 +4000,13 @@ int atl_eval(char *sp) {
 #ifdef MEMMESSAGE
                         fprintf(stderr, " '%s' undefined ", tokbuf);
 #endif
-                        evalstat = ATL_UNDEFINED;
+                        atl__env->evalStatus = ATL_UNDEFINED;
                     }
-                } else if (defpend) {
+                } else if (atl__env->tokPendingDefine) {
                     // If a definition is pending, define the token and
                     // leave the address of the new word item created for
                     // it on the return stack.
-                    defpend = atlFalse;
+                    atl__env->tokPendingDefine = atlFalse;
                     ucase(tokbuf);
                     if (atl__env->allowRedefinition && (lookup(tokbuf) != NULL)) {
                         fprintf(stderr, "\n%s isn't unique.", tokbuf);
@@ -4015,17 +4022,17 @@ int atl_eval(char *sp) {
                          presence of a space as the first character of
                          its name in the dictionary entry. */
                         if (state &&
-                            (cbrackpend || ctickpend ||
+                            (atl__env->tokPendingCompile || atl__env->tokPendingTickCompile ||
                              !(di->wname[0] & IMMEDIATE))) {
-                                if (ctickpend) {
+                                if (atl__env->tokPendingTickCompile) {
                                     /* If a compile-time tick preceded this
                                      word, compile a (lit) word to cause its
                                      address to be pushed at execution time. */
                                     Ho(1);
                                     Hstore = s_lit;
-                                    ctickpend = atlFalse;
+                                    atl__env->tokPendingTickCompile = atlFalse;
                                 }
-                                cbrackpend = atlFalse;
+                                atl__env->tokPendingCompile = atlFalse;
                                 Ho(1);	  /* Reserve stack space */
                                 Hstore = (stackitem) di;/* Compile word address */
                             } else {
@@ -4035,7 +4042,7 @@ int atl_eval(char *sp) {
 #ifdef MEMMESSAGE
                         fprintf(stderr, " '%s' undefined ", tokbuf);
 #endif
-                        evalstat = ATL_UNDEFINED;
+                        atl__env->evalStatus = ATL_UNDEFINED;
                         state = atlFalsity;
                     }
                 }
@@ -4085,8 +4092,8 @@ int atl_eval(char *sp) {
 
 #ifdef STRING
             case TokString:
-                if (stringlit) {
-                    stringlit = atlFalse;
+                if (atl__env->tokPendingStringLiteral) {
+                    atl__env->tokPendingStringLiteral = atlFalse;
                     if (state) {
                         size_t l = (strlen(tokbuf) + 1 + sizeof(stackitem)) /
                         sizeof(stackitem);
@@ -4122,7 +4129,7 @@ int atl_eval(char *sp) {
                 break;
         }
     }
-    return evalstat;
+    return atl__env->evalStatus;
 }
 // end of ATLast/atlast.c
 
