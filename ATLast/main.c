@@ -379,7 +379,9 @@ struct atlenv {
 
 
     // private
+    dictword   *createWord;             //  address of word pending creation
     dictword   *currentWord;            // Current word being executed
+    dictword   *dictFirstProtectedEntry;// first protected item in dictionary
     stackitem  *heap;                   // allocation heap
     stackitem  *heapAllocPtr;           // heap allocation pointer
     stackitem  *heapBottom;             // bottom of heap (temp string buffer)
@@ -404,9 +406,7 @@ struct atlenv {
 
     // TODO: move these
 
-    dictword   *createWord;             //  address of word pending creation
     dictword   *dict;
-    dictword   *dictprot;
     dictword  **ip;
     stackitem  *stack;
     stackitem  *stk;
@@ -430,7 +430,7 @@ atlenv *atl__NewInterpreter(void) {
     e->createWord       = 0;
     e->currentWord      = 0;
     e->dict             = 0;
-    e->dictprot         = 0;
+    e->dictFirstProtectedEntry  = 0;
     e->heap             = 0;
     e->heapAllocPtr     = 0;
     e->heapBottom       = 0;
@@ -593,7 +593,6 @@ Exported stackitem *stk;            /* Stack pointer */
 
 // TODO: move these
 Exported dictword *dict = NULL;       /* Dictionary chain head */
-Exported dictword *dictprot = NULL;   /* First protected item in dictionary */
 
 /* The temporary string buffers */
 
@@ -3581,7 +3580,7 @@ static void exword(dictword *wp) {
 void atl_init(void) {
     if (dict == NULL) {
         atl_primdef(primt);	      /* Define primitive words */
-        dictprot = dict;	      /* Set protected mark in dictionary */
+        atl__env->dictFirstProtectedEntry = dict;	      /* Set protected mark in dictionary */
 
         /* Look up compiler-referenced words in the new dictionary and
          save their compile addresses in static variables. */
@@ -3691,7 +3690,7 @@ void atl_init(void) {
             }
         }
 #endif /* FILEIO */
-        dictprot = dict;	      /* Protect all standard words */
+        atl__env->dictFirstProtectedEntry = dict;	      /* Protect all standard words */
     }
 }
 
@@ -3806,7 +3805,7 @@ void atl_unwind(atl_statemark *mp) {
      buffers attached to the items allocated after the mark was
      made. */
 
-    while (dict != NULL && dict != dictprot && dict != mp->mdict) {
+    while (dict != NULL && dict != atl__env->dictFirstProtectedEntry && dict != mp->mdict) {
         free(dict->wname);	      /* Release name string for item */
         dict = dict->wnext;	      /* Link to previous item */
     }
@@ -3962,7 +3961,7 @@ int atl_eval(char *sp) {
                         // guards against forgetting too much.
 
                         while (dw != NULL) {
-                            if (dw == dictprot) {
+                            if (dw == atl__env->dictFirstProtectedEntry) {
 #ifdef MEMMESSAGE
                                 fprintf(stderr, "\nforget protected.\n");
 #endif
