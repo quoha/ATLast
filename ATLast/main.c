@@ -242,7 +242,7 @@ void rstakunder(void);
 #ifdef __TURBOC__
 #   define  Keyhit()   (kbhit() ? getch() : 0)
     // DOS needs poll to detect break
-#   define  Keybreak() { static int n=0; if ((n = (n+1) & 127) == 0) V kbhit(); }
+#   define  Keybreak() { static int n=0; if ((n = (n+1) & 127) == 0) kbhit(); }
 #   ifdef __MSDOS__
 #       define MSDOS
 #   endif
@@ -257,14 +257,8 @@ void rstakunder(void);
 #   define FBmode
 #endif
 
-// STATIC is defined as "static" on platforms which require this specification on declarations for forward-referenced functions.
-
-#define STATIC static
-
-// Dynamic storage manipulation primitives
-
-//  Stack access definitions
-
+// stack access definitions
+//
 #define S0      atl__env->stk[-1]             // Top of stack
 #define S1      atl__env->stk[-2]             // Next on stack
 #define S2      atl__env->stk[-3]             // Third on stack
@@ -277,13 +271,13 @@ void rstakunder(void);
 #define Push    *atl__env->stk++              // Push item onto stack
 
 #ifdef MEMSTAT
-#define Mss(n) if ((atl__env->stk+(n))>atl__env->stkMaxExtent) atl__env->stkMaxExtent = atl__env->stk+(n);
-#define Msr(n) if ((atl__env->rs+(n))>atl__env->rsMaxExtent) atl__env->rsMaxExtent = atl__env->rs+(n);
-#define Msh(n) if ((atl__env->heapAllocPtr+(n))>atl__env->heapMaxExtent) atl__env->heapMaxExtent = atl__env->heapAllocPtr+(n);
+#   define Mss(n) if ((atl__env->stk+(n))>atl__env->stkMaxExtent) atl__env->stkMaxExtent = atl__env->stk+(n);
+#   define Msr(n) if ((atl__env->rs+(n))>atl__env->rsMaxExtent) atl__env->rsMaxExtent = atl__env->rs+(n);
+#   define Msh(n) if ((atl__env->heapAllocPtr+(n))>atl__env->heapMaxExtent) atl__env->heapMaxExtent = atl__env->heapAllocPtr+(n);
 #else
-#define Mss(n)
-#define Msr(n)
-#define Msh(n)
+#   define Mss(n)
+#   define Msr(n)
+#   define Msh(n)
 #endif
 
 #ifdef NOMEMCHECK
@@ -295,13 +289,13 @@ void rstakunder(void);
 #   define So(n) Mss(n) if ((atl__env->stk+(n))>atl__env->stkTop) {stakover(); return Memerrs;}
 #endif
 
-/*  Return stack access definitions  */
-
-#define R0  atl__env->rs[-1]		      /* Top of return stack */
-#define R1  atl__env->rs[-2]		      /* Next on return stack */
-#define R2  atl__env->rs[-3]		      /* Third on return stack */
-#define Rpop atl__env->rs--		      /* Pop return stack */
-#define Rpush *atl__env->rs++		      /* Push return stack */
+// return stack access definitions
+//
+#define R0      atl__env->rs[-1]    // top of return stack
+#define R1      atl__env->rs[-2]    // next on return stack
+#define R2      atl__env->rs[-3]    // third on return stack
+#define Rpop    atl__env->rs--      // pop return stack
+#define Rpush   *atl__env->rs++     // push return stack
 #ifdef NOMEMCHECK
 #   define Rsl(x)
 #   define Rso(n)
@@ -310,8 +304,8 @@ void rstakunder(void);
 #   define Rso(n) Msr(n) if ((atl__env->rs+(n))>atl__env->rsTop){rstakover(); return Memerrs;}
 #endif
 
-/*  Heap access definitions  */
-
+// heap access definitions
+//
 #ifdef NOMEMCHECK
 #   define Ho(n)
 #   define Hpc(n)
@@ -324,28 +318,28 @@ void rstakunder(void);
 
 #define prim static void	      /* Attributes of primitive functions */
 
-/*  Real number definitions (used only if REAL is configured).	*/
-
+// real number definitions (used only if REAL is configured)
+//
 #define Realsize (sizeof(atl_real)/sizeof(stackitem)) /* Stack cells / real */
 #define Realpop  atl__env->stk -= Realsize      /* Pop real from stack */
 #define Realpop2 atl__env->stk -= (2 * Realsize) /* Pop two reals from stack */
 
-#ifdef ALIGNMENT
+#ifndef ALIGNMENT
+#   define REAL0        *((atl_real *) &S1)         // first real on stack
+#   define REAL1        *((atl_real *) &S3)         // second real on stack
+#   define REAL2        *((atl_real *) &S5)         // third real on stack
+#   define SREAL0(x)    *((atl_real *) &S1) = (x)
+#   define SREAL1(x)    *((atl_real *) &S3) = (x)
+#else
 #   define REAL0        *((atl_real *) memcpy((char *) &rbuf0, (char *) &S1, sizeof(atl_real)))
 #   define REAL1        *((atl_real *) memcpy((char *) &rbuf1, (char *) &S3, sizeof(atl_real)))
 #   define REAL2        *((atl_real *) memcpy((char *) &rbuf2, (char *) &S5, sizeof(atl_real)))
 #   define SREAL0(x)    rbuf2=(x); (void)memcpy((char *) &S1, (char *) &rbuf2, sizeof(atl_real))
 #   define SREAL1(x)    rbuf2=(x); (void)memcpy((char *) &S3, (char *) &rbuf2, sizeof(atl_real))
-#else
-#   define REAL0        *((atl_real *) &S1)   /* First real on stack */
-#   define REAL1        *((atl_real *) &S3)   /* Second real on stack */
-#   define REAL2        *((atl_real *) &S5)   /* Third real on stack */
-#   define SREAL0(x)    *((atl_real *) &S1) = (x)
-#   define SREAL1(x)    *((atl_real *) &S3) = (x)
 #endif
 
-/*  File I/O definitions (used only if FILEIO is configured).  */
-
+// file I/O definitions (used only if FILEIO is configured).
+//
 #define FileSent    0x831FDF9DL       /* Courtesy Marinchip Radioactive random number generator */
 #define Isfile(x)   Hpc(x); if (*((stackitem *)(x))!=FileSent) {fprintf(stderr, "\nnot a file\n");return;}
 #define FileD(x)    ((FILE *) *(((stackitem *) (x)) + 1))
@@ -552,19 +546,10 @@ atlenv *atl__NewInterpreter(void) {
 #endif
 #endif
 
-/*  Custom configuration.  If the tag CUSTOM has been defined (usually on
- the compiler call line), we include the file "atlcfig.h", which may
- then define INDIVIDUALLY and select the subpackages needed for its
- application.  */
-
-#ifdef CUSTOM
-#include "atlcfig.h"
-#endif
-
-/*  Subpackage configuration.  If INDIVIDUALLY is defined, the inclusion
- of subpackages is based on whether their compile-time tags are
- defined.  Otherwise, we automatically enable all the subpackages.  */
-
+// Subpackage configuration.  If INDIVIDUALLY is defined, the inclusion
+// of subpackages is based on whether their compile-time tags are
+// defined.  Otherwise, we automatically enable all the subpackages.
+//
 #ifndef INDIVIDUALLY
 #   define ARRAY                   /* Array subscripting words */
 #   define BREAK                   /* Asynchronous break facility */
@@ -586,8 +571,8 @@ atlenv *atl__NewInterpreter(void) {
 #       define TRACE               /* Execution tracing */
 #       define WALKBACK            /* Walkback trace */
 #       define WORDSUSED           /* Logging of words used and unused */
-#   endif /* NOMEMCHECK */
-#endif /* !INDIVIDUALLY */
+#   endif // NOMEMCHECK
+#endif // !INDIVIDUALLY
 
 #include "atldef.h"
 
@@ -595,10 +580,8 @@ atlenv *atl__NewInterpreter(void) {
 #   include <math.h>
 #endif
 
-/* LINTLIBRARY */
-
-/* Implicit functions (work for all numeric types). */
-
+// Implicit functions (work for all numeric types).
+//
 #ifdef abs
 #   undef abs
 #endif
@@ -606,13 +589,7 @@ atlenv *atl__NewInterpreter(void) {
 #define max(a,b) ((a) >  (b) ?	(a) : (b))
 #define min(a,b) ((a) <= (b) ?	(a) : (b))
 
-/*  Globals imported  */
-
-/*  Data types	*/
-
 #define EOS     '\0'                  /* End of string characters */
-
-#define V	(void)		      /* Force result to void */
 
 /* Utility definition to get an  array's  element  count  (at  compile time).   For  example:
 
@@ -906,13 +883,13 @@ Exported char *atl_fgetsp(char *s, int n, FILE *stream) {
         if (ch == '\r') {
             ch = getc(stream);
             if (ch != '\n')
-                V ungetc(ch, stream);
+                ungetc(ch, stream);
             break;
         }
         if (ch == '\n') {
             ch = getc(stream);
             if (ch != '\r')
-                V ungetc(ch, stream);
+                ungetc(ch, stream);
             break;
         }
         if (i < (n - 1))
@@ -1478,7 +1455,7 @@ prim P_strcpy(void) {
     Sl(2);
     Hpc(S0);
     Hpc(S1);
-    V strcpy((char *) S0, (char *) S1);
+    strcpy((char *) S0, (char *) S1);
     Pop2;
 }
 
@@ -1487,7 +1464,7 @@ prim P_strcat(void) {
     Sl(2);
     Hpc(S0);
     Hpc(S1);
-    V strcat((char *) S0, (char *) S1);
+    strcat((char *) S0, (char *) S1);
     Pop2;
 }
 
@@ -1544,7 +1521,7 @@ prim P_strform(void) {
     Sl(2);
     Hpc(S0);
     Hpc(S1);
-    V sprintf((char *) S0, (char *) S1, S2);
+    sprintf((char *) S0, (char *) S1, S2);
     Npop(3);
 }
 
@@ -1554,7 +1531,7 @@ prim P_fstrform(void) {
     Sl(4);
     Hpc(S0);
     Hpc(S1);
-    V sprintf((char *) S0, (char *) S1, REAL1);
+    sprintf((char *) S0, (char *) S1, REAL1);
     Npop(4);
 }
 #endif /* REAL */
@@ -1958,7 +1935,7 @@ prim P_fclose(void) {
     Hpc(S0);
     Isfile(S0);
     Isopen(S0);
-    V fclose(FileD(S0));
+    fclose(FileD(S0));
     *(((stackitem *) S0) + 1) = (stackitem) NULL;
     Pop;
 }
@@ -2048,7 +2025,7 @@ prim P_fseek(void) {
     Sl(3);
     Isfile(S0);
     Isopen(S0);
-    V fseek(FileD(S0), (long) S2, (int) S1);
+    fseek(FileD(S0), (long) S2, (int) S1);
     Npop(3);
 }
 
@@ -2963,7 +2940,7 @@ prim P_storename(void) {
     tflags = **((char **) S0);
     free(*((char **) S0));
     *((char **) S0) = cp = alloc((unsigned int) (strlen((char *) S1) + 2));
-    V strcpy(cp + 1, (char *) S1);
+    strcpy(cp + 1, (char *) S1);
     *cp = tflags;
     Pop2;
 }
@@ -4140,8 +4117,6 @@ int atl_eval(char *sp) {
 
 #define FALSE	0
 #define TRUE	1
-
-#define V   (void)
 
 #ifdef FBmode
 #define OUR_READ_MODE "rb"
