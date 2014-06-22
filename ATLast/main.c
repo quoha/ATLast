@@ -392,6 +392,8 @@ struct atlenv {
     char       *inputBuffer;            // current input buffer
     dictword  **ip;                     // instruction pointer
     int       (*nextToken)(char **cp);
+    dictword ***rstack;                 // return stack, root of allocated memory for the stack
+    dictword ***rs;                     // return stack pointer
     dictword ***rsBottom;               // return stack bottom
     dictword ***rsMaxExtent;            // return stack maximum excursion
     dictword ***rsTop;                  // return stack top
@@ -404,13 +406,7 @@ struct atlenv {
     dictword  **walkbackPointer;        // walkback trace pointer (stack trace?)
 
     // TODO: rename these
-    dictword ***rstack;                 // return stack
-    dictword ***rs;                     // return stack pointer
     char      **strbuf;                 // table of pointers to temp strings
-
-    // TODO: move these
-
-
 
     // real temporaries for alignment
     atl_real    rbuf0;
@@ -441,6 +437,8 @@ atlenv *atl__NewInterpreter(void) {
     e->inputBuffer      = 0;
     e->ip               = 0;
     e->nextToken        = atl__token;
+    e->rstack           = 0;
+    e->rs               = 0;
     e->rsBottom         = 0;
     e->rsMaxExtent      = 0;
     e->rsTop            = 0;
@@ -449,12 +447,10 @@ atlenv *atl__NewInterpreter(void) {
     e->stkBottom        = 0;
     e->stkMaxExtent     = 0;
     e->stkTop           = 0;
-
-    e->rstack           = 0;
-    e->rs               = 0;
-    e->strbuf           = 0;
     e->walkback         = 0;
     e->walkbackPointer  = 0;
+
+    e->strbuf           = 0;
 
     // assign default public values
     e->allowRedefinition            = atlTruth;
@@ -584,7 +580,7 @@ atlenv *atl__NewInterpreter(void) {
 // TODO: move these
 static char *fopenmodes[] = {
 #ifdef FBmode
-#define FMspecial
+#   define FMspecial
     /* Fopen() mode table for systems that require a "b" in the mode string for binary files. */
     "", "r",  "",   "r+",
     "", "rb", "",   "r+b",
