@@ -291,7 +291,7 @@ void rstakunder(void);
 #   define So(n)
 #else
 #   define Memerrs
-#   define Sl(x) if ((atl__env->stk-stack)<(x)) {stakunder(); return Memerrs;}
+#   define Sl(x) if ((atl__env->stk-atl__env->stack)<(x)) {stakunder(); return Memerrs;}
 #   define So(n) Mss(n) if ((atl__env->stk+(n))>atl__env->stkTop) {stakover(); return Memerrs;}
 #endif
 
@@ -395,6 +395,7 @@ struct atlenv {
     dictword ***rsBottom;               // return stack bottom
     dictword ***rsMaxExtent;            // return stack maximum excursion
     dictword ***rsTop;                  // return stack top
+    stackitem  *stack;                  // evaluation stack, root of allocated memory for the stack
     stackitem  *stk;                    // stack pointer
     stackitem  *stkBottom;              // pointer to stack bottom
     stackitem  *stkMaxExtent;           // stack maximum excursion
@@ -409,7 +410,6 @@ struct atlenv {
 
     // TODO: move these
 
-    stackitem  *stack;
 
 
     // real temporaries for alignment
@@ -579,16 +579,6 @@ atlenv *atl__NewInterpreter(void) {
  many  bytes are in a string constant INCLUDING THE TRAILING NULL. */
 
 #define ELEMENTS(array) (sizeof(array)/sizeof((array)[0]))
-
-/*  Globals visible to calling programs  */
-
-/*  Local variables  */
-
-/* The evaluation stack */
-
-// TODO: move these
-Exported stackitem *stack = NULL;   /* Evaluation stack */
-
 
 #ifdef FILEIO
 // TODO: move these
@@ -937,10 +927,10 @@ void atl_memstat(void) {
     fprintf(stderr, "  Memory Area     usage     used    allocated   in use \n");
 
     fprintf(stderr, "   %-12s %6ld    %6ld    %6ld       %3ld\n", "Stack",
-            ((long) (atl__env->stk - stack)),
-            ((long) (atl__env->stkMaxExtent - stack)),
+            ((long) (atl__env->stk - atl__env->stack)),
+            ((long) (atl__env->stkMaxExtent - atl__env->stack)),
             atl__env->stkLength,
-            (100L * (atl__env->stk - stack)) / atl__env->stkLength);
+            (100L * (atl__env->stk - atl__env->stack)) / atl__env->stkLength);
     fprintf(stderr, "   %-12s %6ld    %6ld    %6ld       %3ld\n", "Return stack",
             ((long) (atl__env->rs - atl__env->rstack)),
             ((long) (atl__env->rsMaxExtent - atl__env->rstack)),
@@ -1878,7 +1868,7 @@ prim P_dots(void) {
     if (atl__env->stk == atl__env->stkBottom) {
         fprintf(stderr, "empty.");
     } else {
-        for (tsp = stack; tsp < atl__env->stk; tsp++) {
+        for (tsp = atl__env->stack; tsp < atl__env->stk; tsp++) {
             if (base == 16) {
                 fprintf(stderr, "%lX ", *tsp);
             } else {
@@ -2112,7 +2102,7 @@ prim P_evaluate(void) {
 
 /* Push stack depth */
 prim P_depth(void) {
-    stackitem s = atl__env->stk - stack;
+    stackitem s = atl__env->stk - atl__env->stack;
 
     So(1);
     Push = s;
@@ -2120,7 +2110,7 @@ prim P_depth(void) {
 
 /* Clear stack */
 prim P_clear(void) {
-    atl__env->stk = stack;
+    atl__env->stk = atl__env->stack;
 }
 
 /* Duplicate top of stack */
@@ -3592,15 +3582,14 @@ void atl_init(void) {
         Cconst(s_abortq, "ABORT\"");
 #undef Cconst
 
-        if (stack == NULL) {	      /* Allocate stack if needed */
-            stack = (stackitem *)
-            alloc(((unsigned int) atl__env->stkLength) * sizeof(stackitem));
+        if (atl__env->stack == NULL) {	      /* Allocate stack if needed */
+            atl__env->stack = (stackitem *) alloc(((unsigned int) atl__env->stkLength) * sizeof(stackitem));
         }
-        atl__env->stk = atl__env->stkBottom = stack;
+        atl__env->stk = atl__env->stkBottom = atl__env->stack;
 #ifdef MEMSTAT
-        atl__env->stkMaxExtent = stack;
+        atl__env->stkMaxExtent = atl__env->stack;
 #endif
-        atl__env->stkTop = stack + atl__env->stkLength;
+        atl__env->stkTop = atl__env->stack + atl__env->stkLength;
         if (atl__env->rstack == NULL) {	      /* Allocate return stack if needed */
             atl__env->rstack = (dictword ***) alloc(((unsigned int) atl__env->rsLength) * sizeof(dictword **));
         }
