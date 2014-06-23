@@ -13,6 +13,32 @@
 //
 // Main driver program for interactive ATLAST
 //
+// Other implementations of Forth and stack-based languages if this
+// turns out to not be the right application for your purposes:
+//  http://factorcode.org/
+//  http://retroforth.org/docs/The_Ngaro_Virtual_Machine.html
+//  http://forth.com/
+//  http://www.forth.org/compilers.html
+//
+// TODO:
+//  - Remove interactive support. Leave in the async break and
+//      bake in "breakpoints" so that a user of the library
+//      (for instance an IDE) can single-step or run to a
+//      breakpoint. With that, a user should be able to write
+//      an interactive interpreter.
+//  - Make it log rather than write to stderr.
+//  - Return a void pointer on initialization to obsfuscate
+//      the internal structure, then document that internal
+//      structure.
+//  - Make it embeddable.
+//  - Make it extensible. Find a way to call standard libraries.
+//  - Can it be made type safe (not "should it", but "can it")?
+//  - Write an interactive interpreter (basically, support what
+//      Walker already has).
+//  - Documentation on embedding and extending and the internal
+//      structure.
+//  - Does it need to support ANS Forth? Really?
+//
 
 #include "atlcfg.h"
 
@@ -24,27 +50,28 @@
 #include <unistd.h>
 
 #ifdef ALIGNMENT
-#ifdef __TURBOC__
-#include <mem.h>
-#else
-#include <memory.h>
-#endif
+#   ifdef __TURBOC__
+#       include <mem.h>
+#   else
+#       include <memory.h>
+#   endif
 #endif
 
-// Data types
-
-typedef long                 atl_int;               // Stack integer type
-typedef double               atl_real;              // Real number type
+// data types
+//
+typedef struct atlenv        atlenv;                // state, not env, for internal use
+typedef long                 atl_int;               // stack integer type
+typedef double               atl_real;              // real number type
 typedef struct atl_statemark atl_statemark;
-typedef void               (*codeptr)(void);        // Machine code pointer
+typedef void               (*codeptr)(void);        // machine code pointer
 typedef struct dw            dictword;
 typedef dictword           **rstackitem;
 typedef long                 stackitem;
 
 typedef enum {atlFalse = 0, atlTrue = 1} Boolean;
 
-// Internal state marker item
-
+// internal state marker item
+//
 struct atl_statemark {
     stackitem  *mstack;     // Stack position marker
     stackitem  *mheap;      // Heap allocation marker
@@ -52,8 +79,8 @@ struct atl_statemark {
     dictword   *mdict;      // Dictionary marker
 };
 
-// Dictionary word entry
-
+// dictionary word entry
+//
 struct dw {
     struct dw *wnext;       // Next word in dictionary
     char      *wname;       // Word name.  The first character is
@@ -62,8 +89,8 @@ struct dw {
     codeptr    wcode;       // Machine code implementation
 };
 
-// Primitive definition table entry
-
+// primitive definition table entry
+//
 struct primfcn {
     char   *pname;
     codeptr pcode;
@@ -76,7 +103,6 @@ struct primfcn {
 // fastest possible, please take a look at the original program. is is
 // available at the link given in the COPYING file.
 //
-typedef struct atlenv atlenv;
 struct atlenv {
     // public -- visible to calling programs
     atl_int allowRedefinition;          // Allow redefinition without issuing the "not unique" message.
@@ -173,7 +199,8 @@ dictword  *atl_lookup(char *name);
 void       atl_primdef(struct primfcn *pt);
 dictword  *atl_vardef(char *name, int size);
 
-//  Entry points
+// entry points
+//
 void atl_break(void);
 int  atl_eval(char *sp);
 int  atl_load(FILE *fp);
@@ -192,40 +219,49 @@ void badpointer(void);
 void stakunder(void);
 void rstakunder(void);
 
+void divzero(void);
+void exword(dictword *wp);
+void notcomp(void);
+void pwalkback(void);
+void trouble(char *kind);
+
 // internal use functions
 //
 int atl__token(char **cp);
 
 // External symbols accessible by the calling program.
 
-//  ATL_EVAL return status codes
+// ATL_EVAL return status codes
+//
+#define ATL_SNORM       0	      // normal evaluation
+#define ATL_STACKOVER	-1	      // stack overflow
+#define ATL_STACKUNDER	-2	      // stack underflow
+#define ATL_RSTACKOVER	-3	      // return stack overflow
+#define ATL_RSTACKUNDER -4	      // return stack underflow
+#define ATL_HEAPOVER	-5	      // heap overflow
+#define ATL_BADPOINTER	-6	      // pointer outside the heap
+#define ATL_UNDEFINED	-7	      // undefined word
+#define ATL_FORGETPROT	-8	      // attempt to forget protected word
+#define ATL_NOTINDEF	-9	      // compiler word outside definition
+#define ATL_RUNSTRING	-10	      // unterminated string
+#define ATL_RUNCOMM     -11	      // unterminated comment in file
+#define ATL_BREAK       -12	      // asynchronous break signal received
+#define ATL_DIVZERO     -13	      // attempt to divide by zero
+#define ATL_APPLICATION -14	      // application primitive atl_error()
 
-#define ATL_SNORM       0	      // Normal evaluation
-#define ATL_STACKOVER	-1	      // Stack overflow
-#define ATL_STACKUNDER	-2	      // Stack underflow
-#define ATL_RSTACKOVER	-3	      // Return stack overflow
-#define ATL_RSTACKUNDER -4	      // Return stack underflow
-#define ATL_HEAPOVER	-5	      // Heap overflow
-#define ATL_BADPOINTER	-6	      // Pointer outside the heap
-#define ATL_UNDEFINED	-7	      // Undefined word
-#define ATL_FORGETPROT	-8	      // Attempt to forget protected word
-#define ATL_NOTINDEF	-9	      // Compiler word outside definition
-#define ATL_RUNSTRING	-10	      // Unterminated string
-#define ATL_RUNCOMM     -11	      // Unterminated comment in file
-#define ATL_BREAK       -12	      // Asynchronous break signal received
-#define ATL_DIVZERO     -13	      // Attempt to divide by zero
-#define ATL_APPLICATION -14	      // Application primitive atl_error()
-
-// If explicit alignment is not requested, enable it in any case for known CPU types that require alignment.
+// for alignment for known CPU types that require alignment
 //
 #ifndef ALIGNMENT
 #   ifdef sparc
 #       define ALIGNMENT
 #   endif
 #endif
+
+// TODO: figure out these
+//
 #ifdef __TURBOC__
 #   define  Keyhit()   (kbhit() ? getch() : 0)
-    // DOS needs poll to detect break
+// DOS needs poll to detect break
 #   define  Keybreak() { static int n=0; if ((n = (n+1) & 127) == 0) kbhit(); }
 #   ifdef __MSDOS__
 #       define MSDOS
@@ -241,17 +277,21 @@ int atl__token(char **cp);
 #   define FBmode
 #endif
 
-// Word flag bits
+// TODO: are these for Booleans or some other purpose?
+#define FALSE	0
+#define TRUE	1
 
-#define IMMEDIATE   1		      // Word is immediate
-#define WORDUSED    2		      // Word used by program
-#define WORDHIDDEN  4		      // Word is hidden from lookup
+// word flag bits
+//
+#define IMMEDIATE   1		      // word is immediate
+#define WORDUSED    2		      // word used by program
+#define WORDHIDDEN  4		      // word is hidden from lookup
 
 // Stack items occupied by a dictionary word definition
 #define Dictwordl ((sizeof(dictword)+(sizeof(stackitem)-1))/sizeof(stackitem))
 
-// Token types
-
+// token types
+//
 #define TokNull     0		      // Nothing scanned
 #define TokWord     1		      // Word stored in token name buffer
 #define TokInt	    2		      // Integer scanned
@@ -325,6 +365,8 @@ int atl__token(char **cp);
 #define Hstore *atl__env->heapAllocPtr++		      /* Store item on heap */
 #define state  (*atl__env->heap)		      /* Execution state is first heap word */
 
+// TODO: remove this
+//
 #define prim static void	      /* Attributes of primitive functions */
 
 // real number definitions (used only if REAL is configured)
@@ -349,7 +391,7 @@ int atl__token(char **cp);
 
 // file I/O definitions (used only if FILEIO is configured).
 //
-#define FileSent    0x831FDF9DL       /* Courtesy Marinchip Radioactive random number generator */
+#define FileSent    0x831FDF9DL // courtesy Marinchip Radioactive random number generator
 #define Isfile(x)   Hpc(x); if (*((stackitem *)(x))!=FileSent) {fprintf(stderr, "\nnot a file\n");return;}
 #define FileD(x)    ((FILE *) *(((stackitem *) (x)) + 1))
 #define Isopen(x)   if (FileD(x) == NULL) {fprintf(stderr, "\nfile not open\n");return;}
@@ -357,80 +399,14 @@ int atl__token(char **cp);
 //---------------------------------------------------------------------------------------------------------------
 //---------------------------------------------------------------------------------------------------------------
 
+// library variables
+//
 static const atl_int atlFalsity = 0L;           // value for falsity
 static const atl_int atlTruth   = ~atlFalsity;  // value for truth
 
+// TODO: user should declare and pass this
+//
 atlenv *atl__env = 0;
-
-atlenv *atl__NewInterpreter(void) {
-    atlenv *e = malloc(sizeof(*e));
-    if (!e) {
-        return e;
-    }
-
-    // assign default private values (TODO: allocate memory)
-    e->asyncBreakReceived       = atlFalse;
-    e->currentNumberBase        = 10;
-    e->createWord       = 0;
-    e->currentWord      = 0;
-    e->dict             = 0;
-    e->dictFirstProtectedEntry  = 0;
-    e->evalStatus       = ATL_SNORM;
-    e->heap             = 0;
-    e->heapAllocPtr     = 0;
-    e->heapBottom       = 0;
-    e->heapMaxExtent    = 0;
-    e->heapTop          = 0;
-    e->idxCurrTempStringBuffer = 0;
-    e->inputBuffer      = 0;
-    e->ip               = 0;
-    e->nextToken        = atl__token;
-    e->rstack           = 0;
-    e->rs               = 0;
-    e->rsBottom         = 0;
-    e->rsMaxExtent      = 0;
-    e->rsTop            = 0;
-    e->s_abortq         = 0;
-    e->s_branch         = 0;
-    e->s_dotparen       = 0;
-    e->s_exit           = 0;
-    e->s_flit           = 0;
-    e->s_lit            = 0;
-    e->s_pxloop         = 0;
-    e->s_qbranch        = 0;
-    e->s_strlit         = 0;
-    e->s_xdo            = 0;
-    e->s_xloop          = 0;
-    e->s_xqdo           = 0;
-    e->stack            = 0;
-    e->stk              = 0;
-    e->stkBottom        = 0;
-    e->stkMaxExtent     = 0;
-    e->stkTop           = 0;
-    e->strbuf           = 0;
-    e->tokPendingCompile        = atlFalse;
-    e->tokPendingDefine         = atlFalse;
-    e->tokPendingForget         = atlFalse;
-    e->tokPendingStringLiteral  = atlFalse;
-    e->tokPendingTickCompile    = atlFalse;
-    e->tokPendingTickMark       = atlFalse;
-    e->walkback                 = 0;
-    e->walkbackPointer          = 0;
-
-    // assign default public values
-    e->allowRedefinition            = atlTruth;
-    e->enableTrace                  = atlFalsity;
-    e->enableWalkback               = atlTruth;
-    e->heapLength                   = 1000;
-    e->isIgnoringComment            = atlFalsity;
-    e->lengthTempStringBuffer       =  256;
-    e->lineNumberLastLoadFailed     =    0;
-    e->numberOfTempStringBuffers    =    4;
-    e->rsLength                     =  100;
-    e->stkLength                    =  100;
-
-    return e;
-}
 
 //---------------------------------------------------------------------------------------------------------------
 //---------------------------------------------------------------------------------------------------------------
@@ -511,7 +487,7 @@ atlenv *atl__NewInterpreter(void) {
 #define ELEMENTS(array) (sizeof(array)/sizeof((array)[0]))
 
 #ifdef FILEIO
-// TODO: move these
+// TODO: figure these out and move then
 static char *fopenmodes[] = {
 #ifdef FBmode
 #   define FMspecial
@@ -529,19 +505,80 @@ static char *fopenmodes[] = {
     "", "",   "w",  "w+"
 #endif
 };
-#endif /* FILEIO */
-
-// TODO: move these
-#ifdef REAL
-#endif
+#endif // FILEIO
 
 /*  Forward functions  */
 
-void divzero(void);
-void exword(dictword *wp);
-void notcomp(void);
-void pwalkback(void);
-void trouble(char *kind);
+atlenv *atl__NewInterpreter(void) {
+    atlenv *e = malloc(sizeof(*e));
+    if (!e) {
+        return e;
+    }
+
+    // assign default private values (TODO: allocate memory)
+    e->asyncBreakReceived       = atlFalse;
+    e->currentNumberBase        = 10;
+    e->createWord       = 0;
+    e->currentWord      = 0;
+    e->dict             = 0;
+    e->dictFirstProtectedEntry  = 0;
+    e->evalStatus       = ATL_SNORM;
+    e->heap             = 0;
+    e->heapAllocPtr     = 0;
+    e->heapBottom       = 0;
+    e->heapMaxExtent    = 0;
+    e->heapTop          = 0;
+    e->idxCurrTempStringBuffer = 0;
+    e->inputBuffer      = 0;
+    e->ip               = 0;
+    e->nextToken        = atl__token;
+    e->rstack           = 0;
+    e->rs               = 0;
+    e->rsBottom         = 0;
+    e->rsMaxExtent      = 0;
+    e->rsTop            = 0;
+    e->s_abortq         = 0;
+    e->s_branch         = 0;
+    e->s_dotparen       = 0;
+    e->s_exit           = 0;
+    e->s_flit           = 0;
+    e->s_lit            = 0;
+    e->s_pxloop         = 0;
+    e->s_qbranch        = 0;
+    e->s_strlit         = 0;
+    e->s_xdo            = 0;
+    e->s_xloop          = 0;
+    e->s_xqdo           = 0;
+    e->stack            = 0;
+    e->stk              = 0;
+    e->stkBottom        = 0;
+    e->stkMaxExtent     = 0;
+    e->stkTop           = 0;
+    e->strbuf           = 0;
+    e->tokPendingCompile        = atlFalse;
+    e->tokPendingDefine         = atlFalse;
+    e->tokPendingForget         = atlFalse;
+    e->tokPendingStringLiteral  = atlFalse;
+    e->tokPendingTickCompile    = atlFalse;
+    e->tokPendingTickMark       = atlFalse;
+    e->walkback                 = 0;
+    e->walkbackPointer          = 0;
+
+    // assign default public values
+    e->allowRedefinition            = atlTruth;
+    e->enableTrace                  = atlFalsity;
+    e->enableWalkback               = atlTruth;
+    e->heapLength                   = 1000;
+    e->isIgnoringComment            = atlFalsity;
+    e->lengthTempStringBuffer       =  256;
+    e->lineNumberLastLoadFailed     =    0;
+    e->numberOfTempStringBuffers    =    4;
+    e->rsLength                     =  100;
+    e->stkLength                    =  100;
+
+    return e;
+}
+
 
 /*  ALLOC  --  Allocate memory and error upon exhaustion.  */
 
@@ -753,29 +790,27 @@ static dictword *lookup(char *tkname) {
 
 /* Gag me with a spoon!  Does no compiler but Turbo support #if defined(x) || defined(y) ?? */
 #ifdef EXPORT
-#define FgetspNeeded
+#   define FgetspNeeded
 #endif
 #ifdef FILEIO
-#ifndef FgetspNeeded
-#define FgetspNeeded
+#   ifndef FgetspNeeded
+#       define FgetspNeeded
+#   endif
 #endif
-#endif
 
-#ifdef FgetspNeeded
-
-/*  ATL_FGETSP	--  Portable database version of FGETS.  This reads the
- next line into a buffer a la fgets().  A line is
- delimited by either a carriage return or a line
- feed, optionally followed by the other character
- of the pair.  The string is always null
- terminated, and limited to the length specified - 1
- (excess characters on the line are discarded.
- The string is returned, or NULL if end of file is
- encountered and no characters were stored.	No end
- of line character is stored in the string buffer.
- */
-
-Exported char *atl_fgetsp(char *s, int n, FILE *stream) {
+// ATL_FGETSP --
+// Portable database version of FGETS.  This reads the
+// next line into a buffer a la fgets().  A line is
+// delimited by either a carriage return or a line
+// feed, optionally followed by the other character
+// of the pair.  The string is always null
+// terminated, and limited to the length specified - 1
+// (excess characters on the line are discarded.
+// The string is returned, or NULL if end of file is
+// encountered and no characters were stored.	No end
+// of line character is stored in the string buffer.
+//
+char *atl_fgetsp(char *s, int n, FILE *stream) {
 	int i = 0, ch;
 
 	while (atlTrue) {
@@ -803,11 +838,9 @@ Exported char *atl_fgetsp(char *s, int n, FILE *stream) {
 	s[i] = EOS;
 	return s;
 }
-#endif /* FgetspNeeded */
 
 /*  ATL_MEMSTAT  --  Print memory usage summary.  */
 
-#ifdef MEMSTAT
 void atl_memstat(void) {
     fprintf(stderr, "\n             Memory Usage Summary\n\n");
     fprintf(stderr, "                 Current   Maximum    Items     Percent\n");
@@ -829,7 +862,6 @@ void atl_memstat(void) {
             atl__env->heapLength,
             (100L * (atl__env->heapAllocPtr - atl__env->heap)) / atl__env->heapLength);
 }
-#endif /* MEMSTAT */
 
 /*  Primitive implementing functions.  */
 
@@ -837,7 +869,7 @@ void atl_memstat(void) {
  name and initial values for its attributes, returns
  the newly-allocated dictionary item. */
 
-static void enter(char *tkname) {
+void enter(char *tkname) {
     /* Allocate name buffer */
     atl__env->createWord->wname = alloc(((unsigned int) strlen(tkname) + 2));
     atl__env->createWord->wname[0] = 0;	      /* Clear flags */
@@ -852,7 +884,7 @@ static void enter(char *tkname) {
  the pause, resume, and quit protocol for the word
  listing facilities.  */
 
-static Boolean kbquit(void) {
+Boolean kbquit(void) {
     int key;
 
     if ((key = Keyhit()) != 0) {
@@ -868,9 +900,9 @@ static Boolean kbquit(void) {
 /*  Primitive word definitions.  */
 
 #ifdef NOMEMCHECK
-#define Compiling
+#   define Compiling
 #else
-#define Compiling if (state == atlFalsity) {notcomp(); return;}
+#   define Compiling if (state == atlFalsity) {notcomp(); return;}
 #endif
 #define Compconst(x) Ho(1); Hstore = (stackitem) (x)
 #define Skipstring atl__env->ip += *((char *) atl__env->ip)
@@ -1043,8 +1075,6 @@ prim P_shift(void) {
     Pop;
 }
 
-#ifdef SHORTCUTA
-
 /* Add one */
 prim P_1plus(void) {
     Sl(1);
@@ -1081,10 +1111,6 @@ prim P_2div(void) {
     S0 /= 2;
 }
 
-#endif /* SHORTCUTA */
-
-#ifdef SHORTCUTC
-
 /* Equal to zero ? */
 prim P_0equal(void) {
     Sl(1);
@@ -1108,8 +1134,6 @@ prim P_0lss(void) {
     Sl(1);
     S0 = (S0 < 0) ? atlTruth : atlFalsity;
 }
-
-#endif /* SHORTCUTC */
 
 /*  Storage allocation (heap) primitives  */
 
@@ -1208,7 +1232,7 @@ prim P_var(void) {
     Push = (stackitem) (((stackitem *) atl__env->currentWord) + Dictwordl);
 }
 
-Exported void P_create(void) {	      /* Create new word */
+void P_create(void) {	      /* Create new word */
     atl__env->tokPendingDefine = atlTrue;		      /* Set definition pending */
     Ho(Dictwordl);
     atl__env->createWord = (dictword *) atl__env->heapAllocPtr;   /* Develop address of word */
@@ -1247,7 +1271,6 @@ prim P_constant(void) {
 
 /*  Array primitives  */
 
-#ifdef ARRAY
 /* Array subscript calculation sub1 sub2 ... subn -- addr */
 prim P_arraysub(void) {
     int i;
@@ -1274,11 +1297,11 @@ prim P_arraysub(void) {
     for (i = 1; i < nsubs; i++)
         offset = (offset * (*(++array))) + *(--isp);
     Npop(nsubs - 1);
-    /* Calculate subscripted address.  We start at the current word,
-     advance to the body, skip two more words for the subscript count
-     and the fundamental element size, then skip the subscript bounds
-     words (as many as there are subscripts).  Then, finally, we
-     can add the calculated offset into the array. */
+    // Calculate subscripted address.  We start at the current word,
+    // advance to the body, skip two more words for the subscript count
+    // and the fundamental element size, then skip the subscript bounds
+    // words (as many as there are subscripts).  Then, finally, we
+    // can add the calculated offset into the array.
     S0 = (stackitem) (((char *) (((stackitem *) atl__env->currentWord) + Dictwordl + 2 + nsubs)) + (esize * offset));
 }
 
@@ -1327,11 +1350,8 @@ prim P_array(void) {
         Hstore = 0;
     Npop(nsubs + 2);
 }
-#endif /* ARRAY */
 
 /*  String primitives  */
-
-#ifdef STRING
 
 /* Push address of string literal */
 prim P_strlit(void) {
@@ -1430,7 +1450,6 @@ prim P_strform(void) {
     Npop(3);
 }
 
-#ifdef REAL
 /* Format real using sprintf() rvalue "%6.2f" str -- */
 prim P_fstrform(void) {
     Sl(4);
@@ -1439,7 +1458,6 @@ prim P_fstrform(void) {
     sprintf((char *) S0, (char *) S1, REAL1);
     Npop(4);
 }
-#endif /* REAL */
 
 /* String to integer  str -- endptr value */
 prim P_strint(void) {
@@ -1454,7 +1472,6 @@ prim P_strint(void) {
     Push = is;
 }
 
-#ifdef REAL
 /* String to real  str -- endptr value */
 prim P_strreal(void) {
     int i;
@@ -1473,12 +1490,8 @@ prim P_strreal(void) {
     	Push = fsu.fss[i];
     }
 }
-#endif /* REAL */
-#endif /* STRING */
 
 /*  Floating point primitives  */
-
-#ifdef REAL
 
 /* Push floating point literal */
 prim P_flit(void) {
@@ -1646,8 +1659,6 @@ prim P_fix(void) {
     Push = i;
 }
 
-#ifdef MATH
-
 #define Mathfunc(x) Sl(Realsize); SREAL0(x(REAL0))
 
 /* Arc cosine */
@@ -1709,12 +1720,9 @@ prim P_tan(void) {
     Mathfunc(tan);
 }
 #undef Mathfunc
-#endif /* MATH */
-#endif /* REAL */
 
 /*  Console I/O primitives  */
 
-#ifdef CONIO
 // . -- print top of stack, pop it
 //
 prim P_dot(void) {
@@ -1802,9 +1810,6 @@ prim P_words(void) {
     }
     fprintf(stderr, "\n");
 }
-#endif /* CONIO */
-
-#ifdef FILEIO
 
 /* Declare file */
 prim P_file(void) {
@@ -1948,9 +1953,6 @@ prim P_fload(void) {
     So(1);
     Push = estat;
 }
-#endif /* FILEIO */
-
-#ifdef EVALUATE
 
 /* string -- status */
 prim P_evaluate(void) {
@@ -1983,7 +1985,6 @@ prim P_evaluate(void) {
     So(1);
     Push = es;			      /* Return eval status on top of stack */
 }
-#endif /* EVALUATE */
 
 /*  Stack mechanics  */
 
@@ -2103,8 +2104,6 @@ prim P_rfetch(void) {
 
 /*  Double stack manipulation items  */
 
-#ifdef DOUBLE
-
 /* Duplicate stack top doubleword */
 prim P_2dup(void) {
     stackitem s;
@@ -2212,7 +2211,6 @@ prim P_2at(void) {
     S0 = *sp++;
     Push = *sp;
 }
-#endif /* DOUBLE */
 
 /*  Data transfer primitives  */
 
@@ -2225,7 +2223,7 @@ prim P_dolit(void) {
     }
 #endif
     Push = (stackitem) *atl__env->ip++;	      /* Push the next datum from the
-                                       instruction stream. */
+                                               instruction stream. */
 }
 
 /*  Control flow primitives  */
@@ -2617,7 +2615,7 @@ prim P_does(void) {
         }
         atl__env->heapAllocPtr++;               // expand allocated length of word
         *sp++ = (stackitem) atl__env->ip;         // store DOES> clause address before
-                                        // word's definition structure.
+        // word's definition structure.
         atl__env->createWord = (dictword *) sp;   // move word definition down 1 item
         atl__env->createWord->wcode = P_dodoes;   // set code field to indirect jump
 
@@ -2697,7 +2695,7 @@ prim P_tick(void) {
 prim P_bracktick(void) {
     Compiling;
     atl__env->tokPendingTickCompile = atlTrue;		      /* Force literal treatment of next
-                                   word in compile stream */
+                                                           word in compile stream */
 }
 
 /* Execute word pointed to by stack */
@@ -2724,8 +2722,6 @@ prim P_state(void) {
 }
 
 /*  Definition field access primitives	*/
-
-#ifdef DEFFIELDS
 
 // Look up word in dictionary
 //
@@ -2850,11 +2846,9 @@ prim P_storename(void) {
     Pop2;
 }
 
-#endif /* DEFFIELDS */
-
 #ifdef SYSTEM
-
-/* string -- status */
+// string -- status
+//
 prim P_system(void) {
     Sl(1);
     Hpc(S0);
@@ -2862,25 +2856,20 @@ prim P_system(void) {
 }
 #endif /* SYSTEM */
 
-#ifdef TRACE
 /* Set or clear tracing of execution */
 prim P_trace(void) {
     Sl(1);
     atl__env->enableTrace = (S0 == 0) ? atlFalsity : atlTruth;
     Pop;
 }
-#endif /* TRACE */
 
-#ifdef WALKBACK
 /* Set or clear error walkback */
 prim P_walkback(void) {
     Sl(1);
     atl__env->enableWalkback = (S0 == 0) ? atlFalsity : atlTruth;
     Pop;
 }
-#endif /* WALKBACK */
 
-#ifdef WORDSUSED
 /* List words used by program */
 prim P_wordsused(void) {
     dictword *dw = atl__env->dict;
@@ -2889,11 +2878,6 @@ prim P_wordsused(void) {
         if (*(dw->wname) & WORDUSED) {
             fprintf(stderr, "\n%s", dw->wname + 1);
         }
-#ifdef Keyhit
-        if (kbquit()) {
-            break;
-        }
-#endif
         dw = dw->wnext;
     }
     fprintf(stderr, "\n");
@@ -2907,18 +2891,11 @@ prim P_wordsunused(void) {
         if (!(*(dw->wname) & WORDUSED)) {
             fprintf(stderr, "\n%s", dw->wname + 1);
         }
-#ifdef Keyhit
-        if (kbquit()) {
-            break;
-        }
-#endif
         dw = dw->wnext;
     }
     fprintf(stderr, "\n");
 }
-#endif /* WORDSUSED */
 
-#ifdef COMPILERW
 /* Force compilation of immediate word */
 prim P_brackcompile(void) {
     Compiling;
@@ -2940,7 +2917,7 @@ prim P_compile(void) {
     Compiling;
     Ho(1);
     Hstore = (stackitem) *atl__env->ip++;       /* Compile the next datum from the
-                                       instruction stream. */
+                                                 instruction stream. */
 }
 
 /* Mark backward backpatch address */
@@ -2983,34 +2960,30 @@ prim P_fwdresolve(void) {
     Pop;
 }
 
-#endif /* COMPILERW */
-
 /*  Table of primitive words  */
 
 static struct primfcn primt[] = {
-    {"0+", P_plus},
-    {"0-", P_minus},
-    {"0*", P_times},
-    {"0/", P_div},
-    {"0MOD", P_mod},
-    {"0/MOD", P_divmod},
-    {"0MIN", P_min},
-    {"0MAX", P_max},
-    {"0NEGATE", P_neg},
-    {"0ABS", P_abs},
+    {"0+"           , P_plus},
+    {"0-"           , P_minus},
+    {"0*"           , P_times},
+    {"0/"           , P_div},
+    {"0MOD"         , P_mod},
+    {"0/MOD"        , P_divmod},
+    {"0MIN"         , P_min},
+    {"0MAX"         , P_max},
+    {"0NEGATE"      , P_neg},
+    {"0ABS"         , P_abs},
     {"0=", P_equal},
     {"0<>", P_unequal},
     {"0>", P_gtr},
     {"0<", P_lss},
     {"0>=", P_geq},
     {"0<=", P_leq},
-
     {"0AND", P_and},
     {"0OR", P_or},
     {"0XOR", P_xor},
     {"0NOT", P_not},
     {"0SHIFT", P_shift},
-
     {"0DEPTH", P_depth},
     {"0CLEAR", P_clear},
     {"0DUP", P_dup},
@@ -3024,24 +2997,16 @@ static struct primfcn primt[] = {
     {"0>R", P_tor},
     {"0R>", P_rfrom},
     {"0R@", P_rfetch},
-
-#ifdef SHORTCUTA
     {"01+", P_1plus},
     {"02+", P_2plus},
     {"01-", P_1minus},
     {"02-", P_2minus},
     {"02*", P_2times},
     {"02/", P_2div},
-#endif /* SHORTCUTA */
-
-#ifdef SHORTCUTC
     {"00=", P_0equal},
     {"00<>", P_0notequal},
     {"00>", P_0gtr},
     {"00<", P_0lss},
-#endif /* SHORTCUTC */
-
-#ifdef DOUBLE
     {"02DUP", P_2dup},
     {"02DROP", P_2drop},
     {"02SWAP", P_2swap},
@@ -3051,8 +3016,6 @@ static struct primfcn primt[] = {
     {"02CONSTANT", P_2constant},
     {"02!", P_2bang},
     {"02@", P_2at},
-#endif /* DOUBLE */
-
     {"0VARIABLE", P_variable},
     {"0CONSTANT", P_constant},
     {"0!", P_bang},
@@ -3065,12 +3028,7 @@ static struct primfcn primt[] = {
     {"0C,", P_ccomma},
     {"0C=", P_cequal},
     {"0HERE", P_here},
-
-#ifdef ARRAY
     {"0ARRAY", P_array},
-#endif
-
-#ifdef STRING
     {"0(STRLIT)", P_strlit},
     {"0STRING", P_string},
     {"0STRCPY", P_strcpy},
@@ -3083,14 +3041,9 @@ static struct primfcn primt[] = {
     {"0SUBSTR", P_substr},
     {"0COMPARE", P_strcmp},
     {"0STRFORM", P_strform},
-#ifdef REAL
     {"0FSTRFORM", P_fstrform},
-#endif
     {"0STRINT", P_strint},
     {"0STRREAL", P_strreal},
-#endif /* STRING */
-
-#ifdef REAL
     {"0(FLIT)", P_flit},
     {"0F+", P_fplus},
     {"0F-", P_fminus},
@@ -3109,7 +3062,6 @@ static struct primfcn primt[] = {
     {"0F.", P_fdot},
     {"0FLOAT", P_float},
     {"0FIX", P_fix},
-#ifdef MATH
     {"0ACOS", P_acos},
     {"0ASIN", P_asin},
     {"0ATAN", P_atan},
@@ -3121,9 +3073,6 @@ static struct primfcn primt[] = {
     {"0SIN", P_sin},
     {"0SQRT", P_sqrt},
     {"0TAN", P_tan},
-#endif /* MATH */
-#endif /* REAL */
-
     {"0(NEST)", P_nest},
     {"0EXIT", P_exit},
     {"0(LIT)", P_dolit},
@@ -3152,26 +3101,12 @@ static struct primfcn primt[] = {
     {"0QUIT", P_quit},
     {"0ABORT", P_abort},
     {"1ABORT\"", P_abortq},
-
-#ifdef SYSTEM
     {"0SYSTEM", P_system},
-#endif
-#ifdef TRACE
     {"0TRACE", P_trace},
-#endif
-#ifdef WALKBACK
     {"0WALKBACK", P_walkback},
-#endif
-
-#ifdef WORDSUSED
     {"0WORDSUSED", P_wordsused},
     {"0WORDSUNUSED", P_wordsunused},
-#endif
-
-#ifdef MEMSTAT
     {"0MEMSTAT", atl_memstat},
-#endif
-
     {"0:", P_colon},
     {"1;", P_semicolon},
     {"0IMMEDIATE", P_immediate},
@@ -3185,8 +3120,6 @@ static struct primfcn primt[] = {
     {"0EXECUTE", P_execute},
     {"0>BODY", P_body},
     {"0STATE", P_state},
-
-#ifdef DEFFIELDS
     {"0FIND", P_find},
     {"0>NAME", P_toname},
     {"0>LINK", P_tolink},
@@ -3197,9 +3130,6 @@ static struct primfcn primt[] = {
     {"0L>NAME", P_linktoname},
     {"0NAME>S!", P_fetchname},
     {"0S>NAME!", P_storename},
-#endif /* DEFFIELDS */
-
-#ifdef COMPILERW
     {"1[COMPILE]", P_brackcompile},
     {"1LITERAL", P_literal},
     {"0COMPILE", P_compile},
@@ -3207,9 +3137,6 @@ static struct primfcn primt[] = {
     {"0<RESOLVE", P_backresolve},
     {"0>MARK", P_fwdmark},
     {"0>RESOLVE", P_fwdresolve},
-#endif /* COMPILERW */
-
-#ifdef CONIO
     {"0.", P_dot},
     {"0?", P_question},
     {"0CR", P_cr},
@@ -3218,9 +3145,6 @@ static struct primfcn primt[] = {
     {"1.(", P_dotparen},
     {"0TYPE", P_type},
     {"0WORDS", P_words},
-#endif /* CONIO */
-
-#ifdef FILEIO
     {"0FILE", P_file},
     {"0FOPEN", P_fopen},
     {"0FCLOSE", P_fclose},
@@ -3234,30 +3158,22 @@ static struct primfcn primt[] = {
     {"0FTELL", P_ftell},
     {"0FSEEK", P_fseek},
     {"0FLOAD", P_fload},
-#endif /* FILEIO */
-
-#ifdef EVALUATE
     {"0EVALUATE", P_evaluate},
-#endif /* EVALUATE */
-
     {NULL, (codeptr) 0}
 };
 
-/*  ATL_PRIMDEF  --  Initialise the dictionary with the built-in primitive
- words.  To save the memory overhead of separately
- allocated word items, we get one buffer for all
- the items and link them internally within the buffer. */
-
-Exported void atl_primdef(struct primfcn *pt) {
+// ATL_PRIMDEF
+// Initialise the dictionary with the built-in primitive
+// words.  To save the memory overhead of separately
+// allocated word items, we get one buffer for all
+// the items and link them internally within the buffer.
+//
+void atl_primdef(struct primfcn *pt) {
     struct primfcn *pf = pt;
     dictword *nw;
     int i, n = 0;
-#ifdef WORDSUSED
-#ifdef READONLYSTRINGS
     unsigned int nltotal;
     char *dynames, *cp;
-#endif /* READONLYSTRINGS */
-#endif /* WORDSUSED */
 
     /* Count the number of definitions in the table. */
 
@@ -3266,7 +3182,6 @@ Exported void atl_primdef(struct primfcn *pt) {
         pf++;
     }
 
-#ifdef WORDSUSED
 #ifdef READONLYSTRINGS
     nltotal = n;
     for (i = 0; i < n; i++) {
@@ -3279,7 +3194,6 @@ Exported void atl_primdef(struct primfcn *pt) {
     }
     cp = dynames;
 #endif /* READONLYSTRINGS */
-#endif /* WORDSUSED */
 
     nw = (dictword *) alloc((unsigned int) (n * sizeof(dictword)));
 
@@ -3287,12 +3201,10 @@ Exported void atl_primdef(struct primfcn *pt) {
     atl__env->dict = nw;
     for (i = 0; i < n; i++) {
         nw->wname = pt->pname;
-#ifdef WORDSUSED
 #ifdef READONLYSTRINGS
     	nw->wname = cp;
         cp += strlen(cp) + 1;
 #endif /* READONLYSTRINGS */
-#endif /* WORDSUSED */
         nw->wcode = pt->pcode;
         if (i != (n - 1)) {
             nw->wnext = nw + 1;
@@ -3301,8 +3213,6 @@ Exported void atl_primdef(struct primfcn *pt) {
         pt++;
     }
 }
-
-#ifdef WALKBACK
 
 /*  PWALKBACK  --  Print walkback trace.  */
 
@@ -3318,7 +3228,6 @@ void pwalkback(void) {
         }
     }
 }
-#endif /* WALKBACK */
 
 /*  TROUBLE  --  Common handler for serious errors.  */
 
@@ -3337,54 +3246,53 @@ void trouble(char *kind) {
 
 /*  ATL_ERROR  --  Handle error detected by user-defined primitive.  */
 
-Exported void atl_error(char *kind) {
+void atl_error(char *kind) {
     trouble(kind);
     atl__env->evalStatus = ATL_APPLICATION;       /* Signify application-detected error */
 }
 
-#ifndef NOMEMCHECK
-
 /*  STAKOVER  --  Recover from stack overflow.	*/
 
-Exported void stakover(void) {
+void stakover(void) {
     trouble("Stack overflow");
     atl__env->evalStatus = ATL_STACKOVER;
 }
 
 /*  STAKUNDER  --  Recover from stack underflow.  */
 
-Exported void stakunder(void) {
+void stakunder(void) {
     trouble("Stack underflow");
     atl__env->evalStatus = ATL_STACKUNDER;
 }
 
 /*  RSTAKOVER  --  Recover from return stack overflow.	*/
 
-Exported void rstakover(void) {
+void rstakover(void) {
     trouble("Return stack overflow");
     atl__env->evalStatus = ATL_RSTACKOVER;
 }
 
 /*  RSTAKUNDER	--  Recover from return stack underflow.  */
 
-Exported void rstakunder(void) {
+void rstakunder(void) {
     trouble("Return stack underflow");
     atl__env->evalStatus = ATL_RSTACKUNDER;
 }
 
-/*  HEAPOVER  --  Recover from heap overflow.  Note that a heap
- overflow does NOT wipe the heap; it's up to
- the user to do this manually with FORGET or
- some such. */
-
-Exported void heapover(void) {
+// HEAPOVER
+// Recover from heap overflow.  Note that a heap
+// overflow does NOT wipe the heap; it's up to
+// the user to do this manually with FORGET or
+// some such.
+//
+void heapover(void) {
     trouble("Heap overflow");
     atl__env->evalStatus = ATL_HEAPOVER;
 }
 
 /*  BADPOINTER	--  Abort if bad pointer reference detected.  */
 
-Exported void badpointer(void) {
+void badpointer(void) {
     trouble("Bad pointer");
     atl__env->evalStatus = ATL_BADPOINTER;
 }
@@ -3403,8 +3311,6 @@ void divzero(void) {
     atl__env->evalStatus = ATL_DIVZERO;
 }
 
-#endif /* !NOMEMCHECK */
-
 /*  EXWORD  --	Execute a word (and any sub-words it may invoke). */
 
 void exword(dictword *wp) {
@@ -3417,9 +3323,6 @@ void exword(dictword *wp) {
     (*atl__env->currentWord->wcode)();	      /* Execute the first word */
     while (atl__env->ip != NULL) {
 #ifdef BREAK
-#ifdef Keybreak
-        Keybreak();		      /* Poll for asynchronous interrupt */
-#endif
         if (atl__env->asyncBreakReceived) {		      /* Did we receive a break signal */
             trouble("Break signal");
             atl__env->evalStatus = ATL_BREAK;
@@ -3437,15 +3340,16 @@ void exword(dictword *wp) {
     atl__env->currentWord = NULL;
 }
 
-/*  ATL_INIT  --  Initialise the ATLAST system.  The dynamic storage areas
- are allocated unless the caller has preallocated buffers
- for them and stored the addresses into the respective
- pointers.  In either case, the storage management
- pointers are initialised to the correct addresses.  If
- the caller preallocates the buffers, it's up to him to
- ensure that the length allocated agrees with the lengths
- given by the atl_... cells.  */
-
+// ATL_INIT
+// Initialise the ATLAST system.  The dynamic storage areas
+// are allocated unless the caller has preallocated buffers
+// for them and stored the addresses into the respective
+// pointers.  In either case, the storage management
+// pointers are initialised to the correct addresses.  If
+// the caller preallocates the buffers, it's up to him to
+// ensure that the length allocated agrees with the lengths
+// given by the atl_... cells.
+//
 void atl_init(void) {
     if (atl__env->dict == NULL) {
         atl_primdef(primt);	      /* Define primitive words */
@@ -3677,8 +3581,6 @@ void atl_unwind(atl_statemark *mp) {
     }
 }
 
-#ifdef BREAK
-
 // ATL_BREAK  --  Asynchronously interrupt execution.
 // Note that this function only sets a flag, asyncBreakReceived, that causes
 // exword() to halt after the current word.  Since this can be
@@ -3688,7 +3590,6 @@ void atl_unwind(atl_statemark *mp) {
 void atl_break(void) {
     atl__env->asyncBreakReceived = atlTrue;		      /* Set break request */
 }
-#endif /* BREAK */
 
 /*  ATL_LOAD  --  Load a file into the system.	*/
 
@@ -3792,10 +3693,7 @@ int atl_eval(char *sp) {
 #define Memerrs atl__env->evalStatus
     atl__env->inputBuffer = sp;
     atl__env->evalStatus = ATL_SNORM;	      // Set normal evaluation status
-
-#ifdef BREAK
     atl__env->asyncBreakReceived = atlFalse;		      // Reset asynchronous break
-#endif
 
     // If automatic prologue processing is configured and we haven't yet
     // initialised, check if this is a prologue statement. If so, execute
@@ -3945,7 +3843,6 @@ int atl_eval(char *sp) {
                 }
                 break;
 
-#ifdef REAL
             case TokReal:
                 if (state) {
                     int i;
@@ -3974,9 +3871,7 @@ int atl_eval(char *sp) {
                     }
                 }
                 break;
-#endif /* REAL */
 
-#ifdef STRING
             case TokString:
                 if (atl__env->tokPendingStringLiteral) {
                     atl__env->tokPendingStringLiteral = atlFalse;
@@ -4009,7 +3904,7 @@ int atl_eval(char *sp) {
                     }
                 }
                 break;
-#endif /* STRING */
+
             default:
                 fprintf(stderr, "\nunknown token type %d\n", i);
                 break;
@@ -4019,9 +3914,6 @@ int atl_eval(char *sp) {
 }
 // end of ATLast/atlast.c
 
-
-#define FALSE	0
-#define TRUE	1
 
 #ifdef FBmode
 #define OUR_READ_MODE "rb"
@@ -4150,18 +4042,18 @@ int main(int argc, const char *argv[]) {
             return 1;
         }
     }
-
+    
     // Now that all the preliminaries are out of the way, fall into the main ATLAST execution loop.
-
+    
     signal(SIGINT, CatchCtrlC);
-
-    while (TRUE) {
-        char t[132];
-
+    
+    do {
         if (!fname) {
             // prompt shows pending comment and compiling state
             fprintf(stderr, atl__env->isIgnoringComment ? "(  " : (((atl__env->heap != NULL) && state) ? ":> " : "-> "));
         }
+        
+        char t[132];
         if (fgets(t, 132, fpInput) == NULL) {
             if (fname && defmode) {
                 fname = defmode = FALSE;
@@ -4171,11 +4063,11 @@ int main(int argc, const char *argv[]) {
             break;
         }
         atl_eval(t);
-    }
+    } while (1);
     if (!fname) {
         fprintf(stderr, "\n");
     }
     atl_memstat();
-
+    
     return 0;
 }
