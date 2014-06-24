@@ -20,24 +20,6 @@
 //  http://forth.com/
 //  http://www.forth.org/compilers.html
 //
-// TODO:
-//  - Remove interactive support. Leave in the async break and
-//      bake in "breakpoints" so that a user of the library
-//      (for instance an IDE) can single-step or run to a
-//      breakpoint. With that, a user should be able to write
-//      an interactive interpreter.
-//  - Make it log rather than write to stderr.
-//  - Return a void pointer on initialization to obsfuscate
-//      the internal structure, then document that internal
-//      structure.
-//  - Make it embeddable.
-//  - Make it extensible. Find a way to call standard libraries.
-//  - Can it be made type safe (not "should it", but "can it")?
-//  - Write an interactive interpreter (basically, support what
-//      Walker already has).
-//  - Documentation on embedding and extending and the internal
-//      structure.
-//  - Does it need to support ANS Forth? Really?
 //
 
 #include "atlcfg.h"
