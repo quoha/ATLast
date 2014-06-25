@@ -30,6 +30,7 @@
 #include <string.h>
 #include <signal.h>
 #include <unistd.h>
+#include <sys/stat.h>
 
 #ifdef ALIGNMENT
 #   ifdef __TURBOC__
@@ -171,6 +172,10 @@ struct atlenv {
     atl_real    rbuf2;
 };
 
+atlenv *atl__NewInterpreter(void);
+int     atl__LoadFile(const char **path, const char *fileName);
+char   *atl__ReadFile(const char **path, const char *fileName);
+
 // Functions called by exported extensions.
 //
 stackitem *atl_body(dictword *dw);
@@ -230,6 +235,7 @@ int atl__token(char **cp);
 #define ATL_BREAK       -12	      // asynchronous break signal received
 #define ATL_DIVZERO     -13	      // attempt to divide by zero
 #define ATL_APPLICATION -14	      // application primitive atl_error()
+#define ATL_BADINPUTFILE -15        // could not load file
 
 // for alignment for known CPU types that require alignment
 //
@@ -489,9 +495,9 @@ static char *fopenmodes[] = {
 };
 #endif // FILEIO
 
-/*  Forward functions  */
-
 atlenv *atl__NewInterpreter(void) {
+    fprintf(stderr, "ATLast 1.2a (2014/06/19)\n");
+
     atlenv *e = malloc(sizeof(*e));
     if (!e) {
         return e;
@@ -561,6 +567,181 @@ atlenv *atl__NewInterpreter(void) {
     return e;
 }
 
+
+char *atl__ReadFile(const char **path, const char *fileName) {
+    int             idx;
+    size_t      lenName = strlen(fileName);
+    size_t      lenPath = 0;
+    struct stat statBuf;
+    char          *text = 0;
+
+    // calculate minimum length of buffer for path + name
+    //
+    for (idx = 0; path[idx]; idx++) {
+        size_t len = strlen(path[idx]);
+        if (lenPath < len) {
+            lenPath = len;
+        }
+    }
+
+    char *nameBuffer = malloc(lenPath + lenName + 1);
+    if (nameBuffer) {
+        // search the path for the file name
+        //
+        for (idx = 0; !text && path[idx]; idx++) {
+            // if found, read it into the text buffer
+            //
+            if (stat(nameBuffer, &statBuf) == 0) {
+                // allocate enough space for the file and the new line plus nil terminator
+                //
+                text = malloc(statBuf.st_size + 2);
+                if (text) {
+                    // set those two extra bytes to zero so that we don't forget to
+                    // do it later. they ensure that we end up nil-terminated.
+                    //
+                    text[statBuf.st_size    ] = 0;
+                    text[statBuf.st_size + 1] = 0;
+
+                    // only do the file read if it has data in it
+                    //
+                    if (statBuf.st_size > 0) {
+                        FILE *fp = fopen(nameBuffer, "r");
+                        if (!fp || fread(text, statBuf.st_size, 1, fp) != 1) {
+                            // delete text on any error
+                            //
+                            free(text);
+                            text = 0;
+                        }
+                        if (fp) {
+                            fclose(fp);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    return text;
+}
+
+// EvalText
+//   evaluates all the text in a buffer
+//
+int atl__EvalText(char *text) {
+    int evalStatus = ATL_SNORM;
+    int lineNumber = 0;                             // will hold current line in text
+
+    // save some state
+    //
+    atl_int  scomm = atl__env->isIgnoringComment;   // stack comment pending state
+    char   *sinstr = atl__env->inputBuffer;         // stack input stream
+    dictword **sip = atl__env->ip;                  // stack instruction pointer
+
+    // reset the last line number of error
+    //
+    atl__env->lineNumberLastLoadFailed = 0; // reset line number of error
+
+    // set up a mark that we can unwind to in case the text contains
+    // errors
+    //
+    atl_statemark mk;
+    atl_mark(&mk);
+
+    // fool atl_eval into thinking that it is interpreting input
+    //
+    atl__env->ip = NULL;
+
+    // handle the eval line by line
+    //
+    while (*text) {
+        lineNumber++;
+
+        // save the start of line since the eval function needs it
+        //
+        char *startOfLine = text;
+
+        // find end of the line
+        //
+        char *endOfLine = text;
+        while (*endOfLine && !(*endOfLine == '\n' || *endOfLine == '\r')) {
+            endOfLine++;
+        }
+
+        // we process line by line, so make the line separator a nul byte
+        // so that the eval function can see only one line at a time
+        //
+        if (*endOfLine == '\r') {
+            *(endOfLine++) = 0;
+            if (*endOfLine == '\n') {
+                *(endOfLine++) = 0;
+            }
+        } else if (*endOfLine == '\n') {
+            *(endOfLine++) = 0;
+            if (*endOfLine == '\r') {
+                *(endOfLine++) = 0;
+            }
+        }
+
+        // call function to process the input "pad"
+        //
+        int evalStatus;
+        if ((evalStatus = atl_eval(startOfLine)) != ATL_SNORM) {
+            atl__env->lineNumberLastLoadFailed = lineNumber; // save line number of error
+            atl_unwind(&mk);
+            break;
+        }
+
+        // move our text pointer to the beginning of the next line
+        // to restart the cycle for that line
+        text = endOfLine;
+    }
+
+    // If there were no other errors, check for a runaway comment.
+    // If we ended the file in comment-ignore mode, set the runaway comment
+    // error status and unwind the file.
+    //
+    if ((evalStatus == ATL_SNORM) && (atl__env->isIgnoringComment == atlTruth)) {
+#ifdef MEMMESSAGE
+        fprintf(stderr, "\nrunaway `(' comment.\n");
+#endif
+        evalStatus = ATL_RUNCOMM;
+        atl_unwind(&mk);
+    }
+
+    // restore saved state
+    //
+    atl__env->isIgnoringComment = scomm;
+    atl__env->ip                = sip;
+    atl__env->inputBuffer       = sinstr;
+
+    return evalStatus;
+}
+
+
+
+// LoadFile(path, file)
+//   searches path to find file
+//   loads entire file into memory
+//   executes file
+//   frees file from memory
+//   returns status
+//
+int atl__LoadFile(const char **path, const char *fileName) {
+    char *text = atl__ReadFile(path, fileName);
+    if (!text) {
+        perror(fileName);
+        return ATL_BADINPUTFILE;
+    }
+
+    int statusInclude = atl__EvalText(text);
+    if (statusInclude != ATL_SNORM) {
+        fprintf(stderr, "\nerror:\t%d in include file %s\n", statusInclude, fileName);
+    }
+
+    free(text);
+
+    return statusInclude;
+}
 
 /*  ALLOC  --  Allocate memory and error upon exhaustion.  */
 
@@ -3920,136 +4101,68 @@ static void CatchCtrlC(int sig) {
 //=======================================================================
 //
 int main(int argc, const char *argv[]) {
-    atl__env = atl__NewInterpreter();
+    const char *searchPath[] = {"", 0};
 
-    int   idx;
-    int   fname = FALSE, defmode = FALSE;
-    FILE *fpInput = stdin;
-
-#define MAX_FNAME_LENGTH 1024
-
-    fprintf(stderr, "ATLast 1.2a (2014/06/19)\n");
-    for (idx = 1; idx < argc; idx++) {
-        const char *cp = argv[idx];
-
-        if (*cp == '-') {
-            const char opt = *(++cp);
-            switch (opt) {
-                case 'd':
-                    defmode = TRUE;
-                    argv[idx] = 0;
-                    break;
-                case 'h':
-                    atl__env->heapLength = atol(cp + 1);
-                    argv[idx] = 0;
-                    break;
-                case 'i':
-                    break;
-                case 'r':
-                    atl__env->rsLength = atol(cp + 1);
-                    argv[idx] = 0;
-                    break;
-                case 's':
-                    atl__env->stkLength = atol(cp + 1);
-                    argv[idx] = 0;
-                    break;
-                case 't':
-                    atl__env->enableTrace = atlTruth;
-                    argv[idx] = 0;
-                    break;
-                case '?':
-                case 'u':
-                    fprintf(stderr, "Usage:  ATLAST [options] [inputfile]\n");
-                    fprintf(stderr, "        Options:\n");
-                    fprintf(stderr, "           -d     treat file as definitions\n");
-                    fprintf(stderr, "           -ifile include named definition file\n");
-                    fprintf(stderr, "           -h##   set heap         length to ##\n");
-                    fprintf(stderr, "           -r##   set return stack length to ##\n");
-                    fprintf(stderr, "           -s##   set stack        length to ##\n");
-                    fprintf(stderr, "           -t     set TRACE mode\n");
-                    fprintf(stderr, "           -u     print this message\n");
-                    return 0;
-            }
-        } else if (fname) {
-            fprintf(stderr, "error:\tduplicate file name.\n");
-            return 1;
-        } else {
-            char fn[MAX_FNAME_LENGTH];
-
-            fname = TRUE;
-            strncpy(fn, cp, MAX_FNAME_LENGTH - 5);
-            if (strchr(fn, '.') == NULL) {
-                strcat(fn, ".atl");
-            }
-            fpInput = fopen(fn, "r");
-            if (fpInput == NULL) {
-                perror(fn);
-                fprintf(stderr, "error:\tunable to open file %s\n", fn);
-                return 1;
-            }
-        }
-    }
-
-    // initialize the interpreter?
+    // create and initialize the interpreter
     //
+    atl__env = atl__NewInterpreter();
     atl_init();
 
+    int   idx;
     for (idx = 1; idx < argc; idx++) {
-        if (!argv[idx]) {
-            continue;
+        char *opt = malloc(strlen(argv[idx] + 4));
+        if (!opt) {
+            perror(__FUNCTION__);
+            return 2;
         }
-        if (strncmp(argv[idx], "-i", 2) == 0) {
+        strcpy(opt, argv[idx]);
+
+        char *val = 0;
+        if (opt[0] == '-' && opt[1] == '-') {
+            val = opt;
+            while (*val && *val != '=') {
+                val++;
+            }
+            if (*val == '=') {
+                *(val++) = 0;
+            }
+        }
+
+        if (!strcmp(opt, "--help")) {
+        } else if (!strcmp(opt, "--heap-length")) {
+            //atl__env->heapLength = atol(val);
+        } else if (!strcmp(opt, "--return-stack-length")) {
+            //atl__env->rsLength = atol(val);
+        } else if (!strcmp(opt, "--stack-length")) {
+            //atl__env->stkLength = atol(val);
+        } else if (!strcmp(opt, "--enable-trace")) {
+            //atl__env->enableTrace = atlTruth;
+        } else if (!val) {
             // load each include as passed in
             //
-            char fileNameInclude[MAX_FNAME_LENGTH];
+            char *fileNameInclude = opt;
 
-            strncpy(fileNameInclude, argv[idx] + 2, MAX_FNAME_LENGTH - 5);
-            if (strchr(fileNameInclude, '.') == NULL) {
+            // first force an extension if not present
+            //
+            char *dot = strrchr(fileNameInclude, '.');
+            if (!dot || strcmp(dot, ".atl")) {
                 strcat(fileNameInclude, ".atl");
             }
-            FILE *fpInclude = fopen(fileNameInclude, OUR_READ_MODE);
-            if (!fpInclude) {
-                perror(fileNameInclude);
-                fprintf(stderr, "error:\ttnable to open include file %s\n", fileNameInclude);
-                return 1;
-            }
-            int statusInclude = atl_load(fpInclude);
-            fclose(fpInclude);
-            if (statusInclude != ATL_SNORM) {
-                fprintf(stderr, "\nerror:\t%d in include file %s\n", statusInclude, fileNameInclude);
-                return 1;
+
+            if (atl__LoadFile(searchPath, fileNameInclude) != ATL_SNORM) {
+                fprintf(stderr, "\nerror:\tfailed to load file\n\t%-18s == '%s'\n", "fileName", fileNameInclude);
+                return 2;
             }
         } else {
-            fprintf(stderr, "error:\tunknown option '%s'\n", argv[idx]);
-            return 1;
+            fprintf(stderr, "\nerror:\tunknown option '%s'\n", argv[idx]);
+            return 2;
         }
+        free(opt);
     }
-    
-    // Now that all the preliminaries are out of the way, fall into the main ATLAST execution loop.
-    
-    signal(SIGINT, CatchCtrlC);
-    
-    do {
-        if (!fname) {
-            // prompt shows pending comment and compiling state
-            fprintf(stderr, atl__env->isIgnoringComment ? "(  " : (((atl__env->heap != NULL) && state) ? ":> " : "-> "));
-        }
-        
-        char t[132];
-        if (fgets(t, 132, fpInput) == NULL) {
-            if (fname && defmode) {
-                fname = defmode = FALSE;
-                fpInput = stdin;
-                continue;
-            }
-            break;
-        }
-        atl_eval(t);
-    } while (1);
-    if (!fname) {
-        fprintf(stderr, "\n");
-    }
+
+    fprintf(stderr, "\n");
     atl_memstat();
-    
+    fprintf(stderr, "\n");
+
     return 0;
 }
