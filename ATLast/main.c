@@ -174,7 +174,12 @@ struct atlenv {
 
 atlenv *atl__NewInterpreter(void);
 int     atl__LoadFile(const char **path, const char *fileName);
+void    atl__Mark(atl_statemark *mp);
 char   *atl__ReadFile(const char **path, const char *fileName);
+
+// internal use functions
+//
+int     atl__ReadNextToken(char **cp);
 
 // Functions called by exported extensions.
 //
@@ -192,7 +197,6 @@ void atl_break(void);
 int  atl_eval(char *sp);
 int  atl_load(FILE *fp);
 void atl_init(void);
-void atl_mark(atl_statemark *mp);
 void atl_memstat(void);
 void atl_unwind(atl_statemark *mp);
 
@@ -212,9 +216,6 @@ void notcomp(void);
 void pwalkback(void);
 void trouble(char *kind);
 
-// internal use functions
-//
-int atl__token(char **cp);
 
 // External symbols accessible by the calling program.
 
@@ -519,7 +520,7 @@ atlenv *atl__NewInterpreter(void) {
     e->idxCurrTempStringBuffer = 0;
     e->inputBuffer      = 0;
     e->ip               = 0;
-    e->nextToken        = atl__token;
+    e->nextToken        = atl__ReadNextToken;
     e->rstack           = 0;
     e->rs               = 0;
     e->rsBottom         = 0;
@@ -650,7 +651,7 @@ int atl__EvalText(char *text) {
     // errors
     //
     atl_statemark mk;
-    atl_mark(&mk);
+    atl__Mark(&mk);
 
     // fool atl_eval into thinking that it is interpreting input
     //
@@ -776,7 +777,7 @@ void ucase(char *c) {
 
 /*  TOKEN  --  Scan a token and return its type.  */
 
-int atl__token(char **cp) {
+int atl__ReadNextToken(char **cp) {
     char *sp = *cp;
 
     while (atlTrue) {
@@ -2135,7 +2136,7 @@ prim P_evaluate(void) {
     Hpc(S0);
     estring = (char *) S0;	      /* Get string to evaluate */
     Pop;			      /* Pop so it sees arguments below it */
-    atl_mark(&mk);		      /* Mark in case of error */
+    atl__Mark(&mk);		      /* Mark in case of error */
     atl__env->ip = NULL;			      /* Fool atl_eval into interp state */
     if ((es = atl_eval(estring)) != ATL_SNORM) {
         atl_unwind(&mk);
@@ -3713,13 +3714,15 @@ dictword *atl_vardef(char *name, int size) {
     return di;			      /* Return new word */
 }
 
-/*  ATL_MARK  --  Mark current state of the system.  */
-
-void atl_mark(atl_statemark *mp) {
-    mp->mstack = atl__env->stk;		      /* Save stack position */
-    mp->mheap = atl__env->heapAllocPtr;		      /* Save heap allocation marker */
-    mp->mrstack = atl__env->rs; 	      /* Set return stack pointer */
-    mp->mdict = atl__env->dict;		      /* Save last item in dictionary */
+// ATL_MARK --
+//  populate a "mark," which is a snapshot of important parts
+//  of the current state of the system
+//
+void atl__Mark(atl_statemark *mp) {
+    mp->mstack  = atl__env->stk;            // save stack position
+    mp->mheap   = atl__env->heapAllocPtr;   // save heap allocation marker
+    mp->mrstack = atl__env->rs;             // set return stack pointer
+    mp->mdict   = atl__env->dict;           // save last item in dictionary
 }
 
 /*  ATL_UNWIND	--  Restore system state to previously saved state.  */
@@ -3771,7 +3774,7 @@ int atl_load(FILE *fp) {
     int lineno = 0;		      /* Current line number */
 
     atl__env->lineNumberLastLoadFailed = 0; // reset line number of error
-    atl_mark(&mk);
+    atl__Mark(&mk);
     atl__env->ip = NULL;			      /* Fool atl_eval into interp state */
     while (atl_fgetsp(s, 132, fp) != NULL) {
         lineno++;
@@ -4082,12 +4085,6 @@ int atl_eval(char *sp) {
 }
 // end of ATLast/atlast.c
 
-
-#ifdef FBmode
-#define OUR_READ_MODE "rb"
-#else
-#define OUR_READ_MODE "r"
-#endif
 
 //=======================================================================
 //
