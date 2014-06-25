@@ -366,6 +366,10 @@ void trouble(char *kind);
 #define Realpop  atl__env->stk -= Realsize      /* Pop real from stack */
 #define Realpop2 atl__env->stk -= (2 * Realsize) /* Pop two reals from stack */
 
+// TODO: alignment if stack isn't on a boundary. rather than let the CPU handle the
+//       mis-alignment in a slow way (or in a throw-an-exception way), use a memcpy
+//       to put the item in a properly aligned slot.
+//
 #ifndef ALIGNMENT
 #   define REAL0        *((atl_real *) &S1)         // first real on stack
 #   define REAL1        *((atl_real *) &S3)         // second real on stack
