@@ -172,7 +172,10 @@ struct atlenv {
     atl_real    rbuf2;
 };
 
+// public interface
+//
 atlenv *atl__NewInterpreter(void);
+void    atl__Break(void);
 int     atl__LoadFile(const char **path, const char *fileName);
 void    atl__Mark(atl_statemark *mp);
 char   *atl__ReadFile(const char **path, const char *fileName);
@@ -193,7 +196,6 @@ dictword  *atl_vardef(char *name, int size);
 
 // entry points
 //
-void atl_break(void);
 int  atl_eval(char *sp);
 int  atl_load(FILE *fp);
 void atl_init(void);
@@ -568,7 +570,24 @@ atlenv *atl__NewInterpreter(void) {
     return e;
 }
 
+// Break
+//   set the asyncBreakReceived (should reall be asymBreakRequested)
+//   flag in the state. this serves notice to the interpreter that
+//   it should call a break as soon as it is convenient. this is
+//   intended to be called from interrupt handlers, so all it does
+//   is set the flag. anything more would be dangerous without
+//   locking the state structure first. and we don't support locks.
+//
+void atl__Break(void) {
+    atl__env->asyncBreakReceived = atlTrue;		      /* Set break request */
+}
 
+// ReadFile(path, fileName)
+//   searches the path for the given file. if found, it returns
+//   a malloc'd character buffer containing the contents of
+//   the file. uses "fread", so it doesn't even pretend to
+//   understand the various end-of-line conventions.
+//
 char *atl__ReadFile(const char **path, const char *fileName) {
     int             idx;
     size_t      lenName = strlen(fileName);
@@ -630,8 +649,9 @@ char *atl__ReadFile(const char **path, const char *fileName) {
     return text;
 }
 
-// EvalText
-//   evaluates all the text in a buffer
+// EvalText(text)
+//   evaluates all the text in a buffer as though it were typed in
+//   at the prompt. probably not what it should be doing.
 //
 int atl__EvalText(char *text) {
     int evalStatus = ATL_SNORM;
@@ -723,14 +743,9 @@ int atl__EvalText(char *text) {
     return evalStatus;
 }
 
-
-
 // LoadFile(path, file)
-//   searches path to find file
-//   loads entire file into memory
-//   executes file
-//   frees file from memory
-//   returns status
+//   calls ReadFile to load a file buffer, then calls EvalText
+//   to evaluate the contents.
 //
 int atl__LoadFile(const char **path, const char *fileName) {
     char *text = atl__ReadFile(path, fileName);
@@ -3750,16 +3765,6 @@ void atl_unwind(atl_statemark *mp) {
         free(atl__env->dict->wname);	      /* Release name string for item */
         atl__env->dict = atl__env->dict->wnext;	      /* Link to previous item */
     }
-}
-
-// ATL_BREAK  --  Asynchronously interrupt execution.
-// Note that this function only sets a flag, asyncBreakReceived, that causes
-// exword() to halt after the current word.  Since this can be
-// called at any time, it daren't touch the system state directly,
-// as it may be in an unstable condition.
-//
-void atl_break(void) {
-    atl__env->asyncBreakReceived = atlTrue;		      /* Set break request */
 }
 
 /*  ATL_LOAD  --  Load a file into the system.	*/
