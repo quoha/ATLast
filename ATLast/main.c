@@ -589,8 +589,11 @@ char *atl__ReadFile(const char **path, const char *fileName) {
         // search the path for the file name
         //
         for (idx = 0; !text && path[idx]; idx++) {
+            sprintf(nameBuffer, "%s%s", path[idx], fileName);
+
             // if found, read it into the text buffer
             //
+            fprintf(stderr, ".read:\ttry %s\n", nameBuffer);
             if (stat(nameBuffer, &statBuf) == 0) {
                 // allocate enough space for the file and the new line plus nil terminator
                 //
@@ -620,6 +623,8 @@ char *atl__ReadFile(const char **path, const char *fileName) {
             }
         }
     }
+
+    free(nameBuffer);
 
     return text;
 }
@@ -4083,20 +4088,6 @@ int atl_eval(char *sp) {
 #else
 #define OUR_READ_MODE "r"
 #endif
-
-// Globals imported
-
-//=======================================================================
-// CatchCtrlC  --  Catch a user console break signal.  If your C library
-// does not provide this Unix-compatibile facility (registered with the
-// call on signal() in main()), just turn this code off or, better still,
-// replace it with the equivalent on your system.
-//
-static void CatchCtrlC(int sig) {
-    if (sig == SIGINT) {
-        atl_break();
-    }
-}
 
 //=======================================================================
 //
