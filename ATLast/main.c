@@ -768,8 +768,9 @@ int atl__LoadFile(const char **path, const char *fileName) {
     return statusInclude;
 }
 
-/*  ALLOC  --  Allocate memory and error upon exhaustion.  */
-
+// alloc(size)
+// allocate memory and error upon exhaustion
+//
 char *alloc(unsigned int size) {
     char *cp = malloc(size);
 
@@ -781,21 +782,22 @@ char *alloc(unsigned int size) {
     return cp;
 }
 
-/*  UCASE  --  Force letters in string to upper case.  */
-
+// ucase(string)
+// force letters in c-string to upper case
+// modifies input
+//
 void ucase(char *c) {
-    char ch;
-
-    while ((ch = *c) != EOS) {
-        if (islower(ch)) {
-            *c = toupper(ch);
+    while (*c) {
+        if (islower(*c)) {
+            *c = toupper(*c);
         }
         c++;
     }
 }
 
-/*  TOKEN  --  Scan a token and return its type.  */
-
+// ReadNextToken(pointerToString)
+// scan a token and return its type
+//
 int atl__ReadNextToken(char **cp) {
     char *sp = *cp;
 
