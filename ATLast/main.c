@@ -806,6 +806,10 @@ int atl__ReadNextToken(char **cp) {
         int tl = 0;
         Boolean istring = atlFalse, rstring = atlFalse;
 
+        // if the prior token was a comment, keep skipping
+        // until we encounter the end of the comment
+        // (or end of input)
+        //
         if (atl__env->isIgnoringComment) {
             while (*sp != ')') {
                 if (*sp == EOS) {
@@ -818,8 +822,10 @@ int atl__ReadNextToken(char **cp) {
             atl__env->isIgnoringComment = atlFalsity;
         }
 
-        while (isspace(*sp))		  /* Skip leading blanks */
+        // skip leading blanks
+        while (isspace(*sp)) {
             sp++;
+        }
 
         if (*sp == '"') {                 /* Is this a string ? */
 
