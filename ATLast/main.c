@@ -827,15 +827,14 @@ int atl__ReadNextToken(char **cp) {
             sp++;
         }
 
-        if (*sp == '"') {                 /* Is this a string ? */
-
-            /* Assemble string token. */
-
-            sp++;
+        // look for a string starting with double quotes
+        //
+        if (*sp == '"') {
+            char quote = *(sp++);
             while (atlTrue) {
                 char c = *sp++;
 
-                if (c == '"') {
+                if (c == quote) {
                     sp++;
                     *tp++ = EOS;
                     break;
@@ -843,8 +842,7 @@ int atl__ReadNextToken(char **cp) {
                     rstring = atlTrue;
                     *tp++ = EOS;
                     break;
-                }
-                if (c == '\\') {
+                } else if (c == '\\') {
                     c = *sp++;
                     if (c == EOS) {
                         rstring = atlTrue;
