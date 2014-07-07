@@ -922,10 +922,7 @@ int atl__ReadNextToken(char **cp) {
          ignore all characters until the matching comment close delimiter. */
 
         if (strcmp(atl__env->tokbuf, "(") == 0) {
-            while (*sp != EOS) {
-                if (*sp == ')') {
-                    break;
-                }
+            while (*sp && *sp != ')') {
                 sp++;
             }
             if (*sp == ')') {
@@ -939,7 +936,7 @@ int atl__ReadNextToken(char **cp) {
 
         /* See if the token is a number. */
 
-        if (isdigit(atl__env->tokbuf[0]) || atl__env->tokbuf[0] == '-') {
+        if (isdigit(atl__env->tokbuf[0]) || (atl__env->tokbuf[0] == '-' && isdigit(atl__env->tokbuf[1]))) {
             char tc;
             char *tcp;
 
